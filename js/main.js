@@ -259,11 +259,24 @@ function disconnectSerial() {
 // 3. 更新极坐标图 + 图例
 // 4. 调用 computeBestIdx() 判断指向（和 Python 完全一致）
 function onData(addr, dis, azi) {
+    console.log('[main.onData] received:', addr, dis, azi);
     if (addr === null || dis === null || azi === null) return;
 
     // Map addr string to index (01→0, 02→1, 03→2)
     var idx = parseInt(addr, 10) - 1;
-    if (idx < 0 || idx > 2) return;
+    if (idx < 0 || idx > 2) {
+        console.warn('[main.onData] invalid idx:', idx, 'for addr:', addr);
+        return;
+    }
+
+    try {
+        processData(idx, dis, azi);
+    } catch(e) {
+        console.error('[main.onData] crash:', e);
+    }
+}
+
+function processData(idx, dis, azi) {
 
     var dev = state.devices[idx];
     if (!dev) {
