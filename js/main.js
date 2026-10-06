@@ -1,47 +1,55 @@
 /* ============================================
-   主逻辑
+   主逻辑 — 对齐当前 index.html 结构
    ============================================ */
 
 // ========== Global State ==========
 var state = {
     deviceId: generateDeviceId(),
-    deviceType: null,     // 'P' or 'T1'/'T2'/'T3'
+    deviceType: null,       // 'P' or 'T1'/'T2'/'T3'
     serialReader: null,
     polarPlot: null,
     devices: [null, null, null],
     lastPointedAt: -1,
     pointingStartTime: null,
     pointingTimer: null,
-    isMaster: false,       // Whether this tab is the master P instance
-    pubnub: null,          // PubNub instance
+    isMaster: false,
+    pubnub: null,
 };
 
-// ========== DOM References ==========
+// ========== DOM References (aligned with current index.html) ==========
 var screens = {
-    registration: document.getElementById('registration-screen'),
-    pScreen:      document.getElementById('p-screen'),
-    tScreen:      document.getElementById('t-screen'),
+    register: document.getElementById('screen-register'),
+    pDevice:  document.getElementById('screen-p-device'),
+    tDevice:  document.getElementById('screen-t-device'),
 };
 
 var pUI = {
-    status:         document.getElementById('status'),
-    polarContainer: document.getElementById('polar-container'),
-    logContainer:   document.getElementById('log-container'),
+    statusDot:      document.getElementById('status-dot'),
+    statusText:     document.getElementById('status-text'),
+    btnConnect:     document.getElementById('btn-connect'),
     btnDisconnect:  document.getElementById('btn-disconnect'),
-    btnRefresh:     document.getElementById('btn-refresh'),
-    pointingTime:   document.getElementById('pointing-time'),
-    targetLabel:    document.getElementById('target-label'),
-    targetDis:      document.getElementById('target-dis'),
-    targetAzi:      document.getElementById('target-azi'),
+    polarCanvas:    document.getElementById('polar-canvas'),
+    logContent:     document.getElementById('log-content'),
+    pointingTarget: document.getElementById('pointing-target'),
+    pointingStatus: document.getElementById('pointing-status'),
 };
 
 var tUI = {
-    status:        document.getElementById('t-status'),
-    deviceName:    document.getElementById('device-name'),
-    activeDot:     document.getElementById('active-dot'),
-    distanceInfo:  document.getElementById('distance-info'),
-    azimuthInfo:   document.getElementById('azimuth-info'),
-    btnBack:       document.getElementById('btn-back'),
+    statusDisplay: document.getElementById('t-status-display'),
+    deviceIcon:    document.getElementById('t-device-icon'),
+    deviceName:    document.getElementById('t-device-name'),
+    statusText:    document.getElementById('t-status-text'),
+    statusBadge:   document.getElementById('t-status-badge'),
+};
+
+// Registration form elements
+var regUI = {
+    deviceNameInput: document.getElementById('device-name'),
+    deviceButtons:   document.querySelectorAll('.device-btn'),
+    btnEnter:        document.getElementById('btn-enter'),
+    registeredInfo:  document.getElementById('registered-info'),
+    displayName:     document.getElementById('display-device-name'),
+    displayType:     document.getElementById('display-device-type'),
 };
 
 // ========== Init ==========
@@ -51,24 +59,40 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // ========== Registration ==========
 function initRegistration() {
-    var options = document.querySelectorAll('.role-option');
-    for (var i = 0; i < options.length; i++) {
-        options[i].addEventListener('click', (function (opt) {
-            return function () { selectRole(opt.dataset.role); };
-        })(options[i]));
+    // Device type selection
+    for (var i = 0; i < regUI.deviceButtons.length; i++) {
+        (function (btn) {
+            btn.addEventListener('click', function () {
+                selectDevice(btn);
+            });
+        })(regUI.deviceButtons[i]);
     }
+
+    // Enter button
+    regUI.btnEnter.addEventListener('click', function () {
+        if (state.deviceType) {
+            showRoomInfo(state.deviceType);
+        }
+    });
 }
 
-function selectRole(role) {
-    state.deviceType = role;
+function selectDevice(btn) {
+    // Deselect all
+    for (var i = 0; i < regUI.deviceButtons.length; i++) {
+        regUI.deviceButtons[i].classList.remove('selected');
+    }
+    // Select this one
+    btn.classList.add('selected');
+    state.deviceType = btn.dataset.device;
 
-    // Show room info before entering
-    showRoomInfo(role);
+    // Enable enter button
+    regUI.btnEnter.disabled = false;
 }
 
 function showRoomInfo(role) {
     // Hide registration screen
-    screens.registration.style.display = 'none';
+    screens.register.classList.remove('active');
+    screens.register.style.display = 'none';
 
     // Show room info overlay
     var roomOverlay = document.createElement('div');
@@ -92,27 +116,26 @@ function showRoomInfo(role) {
 
 function enterSystem(deviceType) {
     if (deviceType === 'P') {
-        screens.pScreen.style.display = 'flex';
+        screens.pDevice.style.display = 'block';
+        screens.pDevice.classList.add('active');
         initPScreen();
     } else {
-        screens.tScreen.style.display = 'flex';
+        screens.tDevice.style.display = 'block';
+        screens.tDevice.classList.add('active');
         initTScreen(deviceType);
     }
 }
 
 // ========== PubNub Setup ==========
 function initPubNub() {
-    // Initialize PubNub client
     state.pubnub = new PubNub({
         publishKey: CONFIG.PUBNUB.publishKey,
         subscribeKey: CONFIG.PUBNUB.subscribeKey,
         uuid: state.deviceId,
     });
 
-    // Subscribe to the room channel
     state.pubnub.subscribe({ channels: [CONFIG.CHANNEL_NAME] });
 
-    // Listen for messages
     state.pubnub.addListener({
         message: function (m) {
             onPubNubMessage(m.message, m.publisher);
@@ -120,7 +143,6 @@ function initPubNub() {
         status: function (statusEvent) {
             if (statusEvent.category === 'PNConnectedCategory') {
                 logMsg('[PubNub] 已连接到房间 ' + CONFIG.ROOM_CODE);
-                // Announce presence after connecting
                 broadcastPresence();
             }
             if (statusEvent.category === 'PNDisconnectedCategory') {
@@ -151,29 +173,21 @@ function broadcastPresence() {
 // ========== P Screen ==========
 function initPScreen() {
     logMsg('主控设备已启动，等待串口连接...');
-    pUI.status.textContent = '⏳ 等待串口连接...';
-    pUI.targetLabel.textContent = '--';
-    pUI.targetDis.textContent = '--';
-    pUI.targetAzi.textContent = '--';
+    pUI.statusText.textContent = '未连接';
+    pUI.pointingTarget.textContent = '--';
+    pUI.pointingStatus.textContent = '等待串口数据...';
 
-    // Initialize PubNub for cross-device communication
+    // Initialize PubNub
     initPubNub();
 
     // Initialize polar plot
-    state.polarPlot = createPolarPlot(pUI.polarContainer);
+    state.polarPlot = createPolarPlot(pUI.polarCanvas);
 
-    // Start serial connection
-    startSerialConnection();
-
-    // Handle disconnect button
+    // Connect/disconnect buttons
+    pUI.btnConnect.addEventListener('click', startSerialConnection);
     pUI.btnDisconnect.addEventListener('click', disconnectSerial);
 
-    // Handle refresh button
-    pUI.btnRefresh.addEventListener('click', function () {
-        location.reload();
-    });
-
-    // Periodic heartbeat to announce presence
+    // Periodic heartbeat
     setInterval(function () {
         if (state.isMaster && state.serialReader && state.serialReader.connected) {
             broadcastPresence();
@@ -184,25 +198,19 @@ function initPScreen() {
 // ========== T Screen ==========
 function initTScreen(deviceType) {
     tUI.deviceName.textContent = CONFIG.DEVICES[deviceType].label;
-    tUI.activeDot.textContent = '🔴';
-    tUI.distanceInfo.textContent = '--';
-    tUI.azimuthInfo.textContent = '--';
-    tUI.status.textContent = '⏳ 等待主控连接...';
+    tUI.statusText.textContent = '等待指向...';
+    tUI.statusBadge.textContent = '未被指向';
+    tUI.statusDisplay.className = 't-status-display red';
 
-    // Initialize PubNub for cross-device communication
+    // Initialize PubNub
     initPubNub();
-
-    // Handle back button
-    tUI.btnBack.addEventListener('click', function () {
-        location.reload();
-    });
 }
 
 // ========== Serial Connection ==========
 function startSerialConnection() {
     if (!navigator.serial) {
         logMsg('❌ 当前浏览器不支持 Web Serial API');
-        pUI.status.textContent = '❌ 不支持 Web Serial';
+        pUI.statusText.textContent = '❌ 不支持 Web Serial';
         return;
     }
 
@@ -210,12 +218,15 @@ function startSerialConnection() {
 
     state.serialReader.connect().then(function () {
         state.isMaster = true;
+        pUI.statusText.textContent = '已连接';
+        pUI.statusDot.className = 'status-dot on';
+        pUI.btnConnect.classList.add('hidden');
+        pUI.btnDisconnect.classList.remove('hidden');
         logMsg('✅ 串口已连接，开始读取数据...');
-        pUI.status.textContent = '✅ 串口已连接';
         state.serialReader.startReading();
     }).catch(function (err) {
         logMsg('❌ 串口连接失败: ' + err.message);
-        pUI.status.textContent = '❌ 连接失败';
+        pUI.statusText.textContent = '❌ 连接失败';
     });
 }
 
@@ -223,8 +234,11 @@ function disconnectSerial() {
     if (state.serialReader) {
         state.serialReader.disconnect();
         state.isMaster = false;
+        pUI.statusText.textContent = '未连接';
+        pUI.statusDot.className = 'status-dot off';
+        pUI.btnConnect.classList.remove('hidden');
+        pUI.btnDisconnect.classList.add('hidden');
         logMsg('⚠️ 串口已断开');
-        pUI.status.textContent = '⚠️ 串口已断开';
     }
 }
 
@@ -238,11 +252,7 @@ function onData(addr, dis, azi) {
 
     var dev = state.devices[idx];
     if (!dev) {
-        dev = {
-            smoothedDis: dis,
-            smoothedAzi: azi,
-            history: [],
-        };
+        dev = { smoothedDis: dis, smoothedAzi: azi, history: [] };
         state.devices[idx] = dev;
     }
 
@@ -260,35 +270,39 @@ function onData(addr, dis, azi) {
     avgDis /= dev.history.length;
     avgAzi /= dev.history.length;
 
-    // Exponential moving average
     var alpha = CONFIG.DATA.smoothAlpha;
     dev.smoothedDis = alpha * avgDis + (1 - alpha) * dev.smoothedDis;
     dev.smoothedAzi = alpha * avgAzi + (1 - alpha) * dev.smoothedAzi;
 
-    // Convert to degrees
     var aziDeg = (dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1);
     var disMm  = Math.round(dev.smoothedDis);
 
     // Update polar plot
-    state.polarPlot.update(idx, {
-        dis: disMm,
-        azi: aziDeg,
-    });
+    state.polarPlot.update(idx, { dis: disMm, azi: aziDeg });
+
+    // Update legend
+    updateLegend(idx, disMm, aziDeg);
 
     // Pointing logic
     checkPointing(idx, disMm, aziDeg);
 
-    // ===== BROADCAST TO TARGET DEVICES VIA PUBNUB =====
-    var targetLabel = CONFIG.CONFIG ? CONFIG.DEVICE_ADDRS[idx] : ('0' + (idx + 1));
-    var targetType = 'T' + (idx + 1);
-
-    // Broadcast raw data for all devices to see
+    // Broadcast raw data via PubNub
     broadcastMessage({
         type: 'raw_data',
         addr: addr,
         dis: disMm,
         azi: aziDeg,
     });
+}
+
+function updateLegend(idx, dis, azi) {
+    var legendItem = document.getElementById('legend-' + idx);
+    if (legendItem) {
+        var dataSpan = legendItem.querySelector('.legend-data');
+        if (dataSpan) {
+            dataSpan.textContent = '距离: ' + dis + 'mm  角度: ' + azi + '°';
+        }
+    }
 }
 
 function checkPointing(idx, dis, azi) {
@@ -300,25 +314,26 @@ function checkPointing(idx, dis, azi) {
         state.pointingStartTime = now;
     }
 
-    // Update UI
-    updateTargetInfo(idx, dis, azi);
+    // Update pointing indicator
+    var targetType = 'T' + (idx + 1);
+    pUI.pointingTarget.textContent = CONFIG.DEVICE_ADDRS[idx] + ' (' + targetType + ')';
 
-    // Check if pointing conditions are met
+    // Check pointing conditions
     if (Math.abs(azi) <= CONFIG.DATA.pointingAziLimit &&
         dis >= stableRange && dis <= stableRange + 500) {
+
         var elapsed = ((now - state.pointingStartTime) / 1000).toFixed(1);
-        pUI.pointingTime.textContent = elapsed + 's';
+        pUI.pointingStatus.textContent = '指向中 ' + elapsed + 's';
 
         if (!state.pointingTimer) {
             state.pointingTimer = setInterval(function () {
                 var e = ((Date.now() - state.pointingStartTime) / 1000).toFixed(1);
-                pUI.pointingTime.textContent = e + 's';
+                pUI.pointingStatus.textContent = '指向中 ' + e + 's';
             }, 100);
         }
 
-        // Broadcast pointing event when stable
+        // Broadcast pointing event when stable (>1s)
         if (parseFloat(elapsed) >= 1.0) {
-            var targetType = 'T' + (idx + 1);
             broadcastMessage({
                 type: 'point_at',
                 target: targetType,
@@ -333,19 +348,13 @@ function checkPointing(idx, dis, azi) {
             clearInterval(state.pointingTimer);
             state.pointingTimer = null;
         }
-        pUI.pointingTime.textContent = '0.0s';
+        pUI.pointingStatus.textContent = '等待稳定指向...';
 
         // Broadcast pointing release
         broadcastMessage({
             type: 'point_stop',
         });
     }
-}
-
-function updateTargetInfo(idx, dis, azi) {
-    pUI.targetLabel.textContent = CONFIG.DEVICE_ADDRS[idx] + ' (T' + (idx + 1) + ')';
-    pUI.targetDis.textContent = dis + ' mm';
-    pUI.targetAzi.textContent = azi + '°';
 }
 
 // ========== PubNub Message Handler ==========
@@ -355,26 +364,20 @@ function onPubNubMessage(msg, senderId) {
 
     switch (msg.type) {
         case 'presence':
-            // Another device joined the room
             if (state.deviceType === 'P') {
                 logMsg('[房间] 设备加入: ' + msg.deviceType + ' (' + msg.deviceId.substr(-6) + ')');
             }
             break;
 
         case 'raw_data':
-            // Raw radar data from P → display on all devices
-            if (state.deviceType === 'P') {
-                // P already displays locally via onData
-            }
+            // Raw radar data — P already displays locally
             break;
 
         case 'point_at':
-            // P is pointing at a target → activate that target's screen
             handlePointAt(msg);
             break;
 
         case 'point_stop':
-            // P stopped pointing → deactivate all targets
             handlePointStop();
             break;
     }
@@ -382,23 +385,21 @@ function onPubNubMessage(msg, senderId) {
 
 function handlePointAt(msg) {
     if (state.deviceType === msg.target) {
-        // This T device is being pointed at → turn green!
-        tUI.activeDot.textContent = '🟢';
-        tUI.activeDot.classList.add('active');
-        tUI.distanceInfo.textContent = msg.dis + ' mm';
-        tUI.azimuthInfo.textContent = msg.azi + '°';
-        tUI.status.textContent = '🟢 被指向中！';
+        // This T device is being pointed at → turn GREEN!
+        tUI.statusDisplay.className = 't-status-display green';
+        tUI.deviceIcon.textContent = '🟢';
+        tUI.statusText.textContent = '被指向中！';
+        tUI.statusBadge.textContent = '距离: ' + msg.dis + 'mm | 角度: ' + msg.azi + '°';
     }
 }
 
 function handlePointStop() {
     if (state.deviceType && state.deviceType !== 'P') {
         // Reset T device display
-        tUI.activeDot.textContent = '🔴';
-        tUI.activeDot.classList.remove('active');
-        tUI.distanceInfo.textContent = '--';
-        tUI.azimuthInfo.textContent = '--';
-        tUI.status.textContent = '⏳ 等待主控连接...';
+        tUI.statusDisplay.className = 't-status-display red';
+        tUI.deviceIcon.textContent = '🔴';
+        tUI.statusText.textContent = '等待指向...';
+        tUI.statusBadge.textContent = '未被指向';
     }
 }
 
@@ -408,6 +409,6 @@ function logMsg(text) {
     var entry = document.createElement('div');
     entry.className = 'log-entry';
     entry.textContent = '[' + time + '] ' + text;
-    pUI.logContainer.appendChild(entry);
-    pUI.logContainer.scrollTop = pUI.logContainer.scrollHeight;
+    pUI.logContent.appendChild(entry);
+    pUI.logContent.scrollTop = pUI.logContent.scrollHeight;
 }
