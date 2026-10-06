@@ -42,12 +42,33 @@ var PolarPlot = (function() {
         };
 
         /* ---- Drawing constants ---- */
-        // Distance range: 0 ~ maxDis mm (matches typical radar readings ~2000-8000mm)
-        var MAX_DIS = 10000;   // max display distance in mm
-        var RING_STEPS = [2000, 4000, 6000, 8000, 10000];  // concentric ring labels
+        // Auto-scale distance based on actual data (mirrors Python's adaptive scale)
+        var DEFAULT_MAX_DIS = 1000;   // default max distance when no data
+        var SCALE_MARGIN_FACTOR = 1.2; // 20% margin above max reading
+        var SCALE_STEP = 200;         // ring step in mm
+
+        function computeScale() {
+            var maxDis = 0;
+            for (var i = 0; i < 3; i++) {
+                var dev = self.devices[i];
+                if (dev && dev.dis > 0 && dev.dis > maxDis) {
+                    maxDis = dev.dis;
+                }
+            }
+            if (maxDis <= 0) return DEFAULT_MAX_DIS;
+            var scaled = maxDis * SCALE_MARGIN_FACTOR;
+            // Round up to next SCALE_STEP
+            return Math.ceil(scaled / SCALE_STEP) * SCALE_STEP;
+        }
 
         function _draw(c) {
             var s = size, cx = self.cx, cy = self.cy, mr = self.maxR;
+            var MAX_DIS = computeScale();
+            // Build ring labels dynamically
+            var RING_STEPS = [];
+            for (var r = SCALE_STEP; r <= MAX_DIS; r += SCALE_STEP) {
+                RING_STEPS.push(r);
+            }
 
             // Background
             c.fillStyle = '#f5f6fa';
