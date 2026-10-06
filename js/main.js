@@ -259,15 +259,11 @@ function disconnectSerial() {
 // 3. 更新极坐标图 + 图例
 // 4. 调用 computeBestIdx() 判断指向（和 Python 完全一致）
 function onData(addr, dis, azi) {
-    console.log('[main.onData] received:', addr, dis, azi);
     if (addr === null || dis === null || azi === null) return;
 
     // Map addr string to index (01→0, 02→1, 03→2)
     var idx = parseInt(addr, 10) - 1;
-    if (idx < 0 || idx > 2) {
-        console.warn('[main.onData] invalid idx:', idx, 'for addr:', addr);
-        return;
-    }
+    if (idx < 0 || idx > 2) return;
 
     try {
         processData(idx, dis, azi);
@@ -327,10 +323,20 @@ function processData(idx, dis, azi) {
 }
 
 /**
- * 严格对齐 point_demo_test1.py 中的 compute_best_idx():
- * 按 T1→T2→T3 顺序遍历，第一个满足条件的设备即为被指向设备。
- * 条件：距离 >= DIST_STABLE_RANGE(800mm) 且 |角度| <= AZI_POINTING_THRESHOLD(5°)
- * 都不满足返回 -1。
+ * 更新图例文字
+ */
+function updateLegend(idx, dis, azi) {
+    var legendItem = document.getElementById('legend-' + idx);
+    if (legendItem) {
+        var dataSpan = legendItem.querySelector('.legend-data');
+        if (dataSpan) {
+            dataSpan.textContent = '距离: ' + dis + 'mm  角度: ' + azi + '°';
+        }
+    }
+}
+
+/**
+ * 严格对齐 point_demo_test1.py 中的 compute_best_idx()
  */
 function computeBestIdx() {
     for (var i = 0; i < 3; i++) {

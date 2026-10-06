@@ -92,7 +92,6 @@ var SerialReader = (function() {
             var addr = m[1].zfill ? m[1].padStart(2, '0') : (m[1].length < 2 ? '0' + m[1] : m[1]);
             var dis = parseInt(m[2], 10);
             var azi = parseInt(m[3], 10);
-            console.log('[SerialReader] parsed:', addr, dis, azi);
             self.onData(addr, dis, azi);
         } else {
             // Log unparseable lines for debugging (only non-empty)
