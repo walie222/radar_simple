@@ -189,3 +189,32 @@ h2 { font-size: 2em; margin-bottom: 20px; }
     .t-device-name { font-size: 2em; }
     .t-status-text { font-size: 1.5em; }
 }
+
+/* ---- Room Overlay ---- */
+.overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+.room-info-box {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    border-radius: 20px; padding: 40px; text-align: center;
+    max-width: 420px; width: 90%;
+    box-shadow: 0 0 60px rgba(255, 215, 0, 0.2);
+}
+.room-info-box h2 {
+    color: #ffd700; margin-bottom: 20px; font-size: 1.8em;
+}
+.room-code-label {
+    color: #aaa; font-size: 0.95em; margin-bottom: 8px;
+}
+.room-code-value {
+    font-size: 2.5em; font-weight: 700; color: #fff;
+    letter-spacing: 4px; margin-bottom: 15px;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+}
+.room-hint {
+    color: #888; font-size: 0.9em; margin-bottom: 25px;
+}

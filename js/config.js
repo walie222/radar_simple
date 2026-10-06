@@ -3,8 +3,15 @@
    ============================================ */
 
 var CONFIG = {
-    // BroadcastChannel 名称（同一浏览器不同标签页通信）
-    CHANNEL_NAME: 'radar-demo-channel',
+    // PubNub 跨设备通信配置（与 radar_demoo-master 使用同一套 key）
+    PUBNUB: {
+        publishKey: 'pub-c-8f6fe818-ef2e-4122-9993-e790f721c8ea',
+        subscribeKey: 'sub-c-632c8bc5-da75-4b54-af01-a18aae16138a',
+    },
+
+    // 房间配置：固定单房间模式，所有设备加入同一个房间
+    ROOM_CODE: 'RADAR01',  // 固定房间号，所有设备自动加入此房间
+    CHANNEL_NAME: 'room-RADAR01-main',  // PubNub channel name
 
     // 串口配置（与 point_demo_test1.py 对齐）
     SERIAL: {
@@ -36,3 +43,8 @@ var CONFIG = {
     DEVICE_ADDRS: ['01', '02', '03'],
     DEVICE_COLORS: ['#e74c3c', '#3498db', '#2ecc71'], // 红色、蓝色、绿色
 };
+
+// 生成唯一设备ID
+function generateDeviceId() {
+    return 'radar_' + Math.random().toString(36).substr(2, 8) + Date.now().toString(36);
+}
