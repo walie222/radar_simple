@@ -85,9 +85,19 @@ var SerialReader = (function() {
     function parseLine(self, line) {
         if (!line || !self.onData) return;
         // Format: addr:XX dis:NNN azi:NNN
-        var m = line.match(/addr:(\d+)\s+dis:(\d+(?:\.\d+)?)\s+azi:(-?\d+(?:\.\d+)?)/);
+        // Match Python pattern: r'addr:([0-9a-zA-Z]+).*dis:([-\d]+).*azi:([-\d]+)'
+        var m = line.match(/addr:([0-9a-zA-Z]+).*dis:(-?\d+).*azi:(-?\d+)/);
         if (m) {
-            self.onData(parseInt(m[1], 10), parseFloat(m[2]), parseFloat(m[3]));
+            // Pad address to 2 chars (e.g. "1" -> "01"), same as Python's zfill(ADDR_WIDTH)
+            var addr = m[1].zfill ? m[1].padStart(2, '0') : (m[1].length < 2 ? '0' + m[1] : m[1]);
+            var dis = parseInt(m[2], 10);
+            var azi = parseInt(m[3], 10);
+            self.onData(addr, dis, azi);
+        } else {
+            // Log unparseable lines for debugging (only non-empty)
+            if (line.trim()) {
+                console.warn('[SerialReader] 无法解析的行: "' + line + '"');
+            }
         }
     }
 

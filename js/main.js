@@ -7,6 +7,7 @@ var APP = (function() {
         deviceName: '',
         deviceType: null,     // 'P' | 'T1' | 'T2' | 'T3'
         channel: null,         // BroadcastChannel
+        filteredPos: null,    // Alpha-filtered positions (mirrors Python's self.filtered_positions)
     };
 
     // ---- DOM helpers ----
@@ -110,8 +111,9 @@ var APP = (function() {
         serial = SerialReader.create();
         serial.onError = function(msg) { logMsg('[WARN] ' + msg, true); };
 
-        // Data callback: accumulate per-device readings
+        // Data callback: accumulate per-device readings (raw values, like Python's parse_and_update)
         serial.onData = function(addr, dis, azi) {
+            logMsg('[解析] addr=' + addr + ' dis=' + dis + ' azi=' + azi);
             dataProcessor.receive(addr, dis, azi);
         };
 
@@ -151,93 +153,170 @@ var APP = (function() {
         }
     }
 
-    // ---- 数据处理（参考 point_demo_test1.py） ----
+    // ---- 数据处理（严格参考 point_demo_test1.py） ----
+    // Python architecture:
+    //   - addr_azis[addr] = deque of raw azi values
+    //   - addr_dises[addr] = deque of raw dis values
+    //   - on timer tick: get_last_measurement(addr) returns (azis[-1], dises[-1])
+    //   - get_current_positions(): if len >= SMOOTHING_WINDOW return mean, else None
+    //   - is_valid_measurement(): outlier check on raw values vs previous mean
     function createDataProcessor() {
         var d = CONFIG.DATA;
-        // Per-address buffers
-        var history = {};       // addr -> [{dis, azi}, ...]
-        var smoothedAzi = {};   // addr -> smoothed azi value
-        var currentReadings = {}; // addr -> {dis, azi} latest valid
-        var pendingAddr = null;
-        var pendingDis = null;
+        // Per-address raw buffers (mirrors Python's addr_azis / addr_dises deques)
+        var addrAzis = {};    // addr -> [raw_azi, ...]
+        var addrDises = {};   // addr -> [raw_dis, ...]
+
+        // Initialize empty buffers for each device address
+        for (var i = 0; i < CONFIG.DEVICE_ADDRS.length; i++) {
+            var addr = CONFIG.DEVICE_ADDRS[i];
+            addrAzis[addr] = [];
+            addrDises[addr] = [];
+        }
 
         function receive(addr, dis, azi) {
-            // Convert azi to degrees (same as Python: azi / AZI_TO_DEG)
-            var aziDeg = azi / d.aziToDeg;
-
-            // Outlier check
-            if (Math.abs(aziDeg) > d.aziOutlierThreshold) {
-                return;
+            if (!addrAzis[addr]) {
+                addrAzis[addr] = [];
+                addrDises[addr] = [];
             }
-            if (dis > d.disOutlierThreshold) {
-                return;
+            addrAzis[addr].push(azi);
+            addrDises[addr].push(dis);
+
+            // Enforce max window size (same as Python's deque maxlen)
+            while (addrAzis[addr].length > d.smoothingWindow) {
+                addrAzis[addr].shift();
             }
-
-            // Normalize to [0, 360)
-            while (aziDeg < 0) aziDeg += 360;
-            while (aziDeg >= 360) aziDeg -= 360;
-
-            // Clip display range
-            if (aziDeg > d.maxDisplayAzi) {
-                aziDeg = d.maxDisplayAzi;
-            }
-
-            // Store in history buffer
-            if (!history[addr]) history[addr] = [];
-            history[addr].push({ dis: dis, azi: aziDeg });
-            if (history[addr].length > d.smoothingWindow) {
-                history[addr].shift();
-            }
-
-            // Smooth azimuth
-            if (history[addr].length >= d.smoothingWindow) {
-                var sum = 0;
-                for (var i = 0; i < history[addr].length; i++) {
-                    sum += history[addr][i].azi;
-                }
-                var avgAzi = sum / history[addr].length;
-                if (smoothedAzi[addr] !== undefined) {
-                    avgAzi = d.smoothAlpha * avgAzi + (1 - d.smoothAlpha) * smoothedAzi[addr];
-                }
-                smoothedAzi[addr] = avgAzi;
-
-                // Update current reading
-                currentReadings[addr] = { dis: dis, azi: avgAzi };
+            while (addrDises[addr].length > d.smoothingWindow) {
+                addrDises[addr].shift();
             }
         }
 
-        function processAll() {
-            // Map addr to index: 01->0, 02->1, 03->2
-            var bestIdx = -1;
-            var minDiff = Infinity;
+        // Mirrors Python's get_last_measurement(addr): returns (azi, dis) of last reading or (null, null)
+        function getLastMeasurement(addr) {
+            var azis = addrAzis[addr];
+            var dises = addrDises[addr];
+            if (azis && azis.length > 0 && dises && dises.length > 0) {
+                return { azi: azis[azis.length - 1], dis: dises[dises.length - 1] };
+            }
+            return { azi: null, dis: null };
+        }
 
+        // Mirrors Python's get_current_positions(): mean if enough samples, else None
+        function getCurrentPositions() {
+            var positions = {};
             for (var i = 0; i < CONFIG.DEVICE_ADDRS.length; i++) {
                 var addr = CONFIG.DEVICE_ADDRS[i];
-                if (!currentReadings[addr]) continue;
-                var r = currentReadings[addr];
+                var azis = addrAzis[addr];
+                var dises = addrDises[addr];
+                if (azis && azis.length >= d.smoothingWindow && dises && dises.length >= d.smoothingWindow) {
+                    var aziSum = 0, disSum = 0;
+                    for (var j = 0; j < azis.length; j++) aziSum += azis[j];
+                    for (var j = 0; j < dises.length; j++) disSum += dises[j];
+                    positions[addr] = { azi: aziSum / azis.length, dis: disSum / dises.length };
+                } else {
+                    positions[addr] = { azi: null, dis: null };
+                }
+            }
+            return positions;
+        }
 
-                // Check pointing criteria (same thresholds as Python)
-                var aziOk = Math.abs(r.azi) <= d.pointingAziLimit;
-                var disOk = r.dis <= d.pointingStableRange;
+        // Mirrors Python's is_valid_measurement(addr)
+        function isValidMeasurement(addr) {
+            var azis = addrAzis[addr];
+            var dises = addrDises[addr];
+            if (!azis || !dises || azis.length < d.smoothingWindow || dises.length < d.smoothingWindow) {
+                return false;
+            }
+            var currentAzi = azis[azis.length - 1];
+            var currentDis = dises[dises.length - 1];
+            if (currentDis < 0) return false;
 
-                if (aziOk && disOk) {
-                    // Calculate deviation from center (0 degrees ideal)
-                    var diff = Math.abs(r.azi);
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        bestIdx = i;
-                    }
+            // Mean of all but last
+            var aziPrevSum = 0, disPrevSum = 0;
+            for (var j = 0; j < azis.length - 1; j++) {
+                aziPrevSum += azis[j];
+                disPrevSum += dises[j];
+            }
+            var prevCount = azis.length - 1;
+            if (prevCount === 0) return false;
+            var aziMean = aziPrevSum / prevCount;
+            var disMean = disPrevSum / prevCount;
+
+            if (Math.abs(currentAzi - aziMean) > d.aziOutlierThreshold) return false;
+            if (Math.abs(currentDis - disMean) > d.disOutlierThreshold) return false;
+            return true;
+        }
+
+        // Mirrors Python's get_highlight_index() logic
+        function getHighlightIndex() {
+            var deviceAvgs = {};
+            for (var idx = 0; idx < CONFIG.DEVICE_ADDRS.length; idx++) {
+                var addr = CONFIG.DEVICE_ADDRS[idx];
+                var azis = addrAzis[addr];
+                var dises = addrDises[addr];
+                if (azis && azis.length >= d.smoothingWindow &&
+                    dises && dises.length >= d.smoothingWindow &&
+                    isValidMeasurement(addr)) {
+                    var sum = 0;
+                    for (var j = 0; j < azis.length; j++) sum += azis[j];
+                    deviceAvgs[idx] = sum / azis.length;
+                } else {
+                    deviceAvgs[idx] = null;
                 }
             }
 
-            return { bestIdx: bestIdx, readings: Object.assign({}, currentReadings) };
+            // Filter valid averages
+            var validAvgs = {};
+            for (var k in deviceAvgs) {
+                if (deviceAvgs[k] !== null) validAvgs[k] = deviceAvgs[k];
+            }
+
+            if (Object.keys(validAvgs).length < 1) return -1;
+
+            // Find device with avg closest to 0
+            var bestIdx = -1;
+            var bestAbs = Infinity;
+            for (var k in validAvgs) {
+                var absVal = Math.abs(validAvgs[k]);
+                if (absVal < bestAbs) {
+                    bestAbs = absVal;
+                    bestIdx = parseInt(k, 10);
+                }
+            }
+
+            var bestAzi = validAvgs[bestIdx];
+
+            // Stability check: range within window AND avg within pointing limit
+            var azisList = addrAzis[CONFIG.DEVICE_ADDRS[bestIdx]];
+            var maxAzi = azisList[0], minAzi = azisList[0];
+            for (var j = 1; j < azisList.length; j++) {
+                if (azisList[j] > maxAzi) maxAzi = azisList[j];
+                if (azisList[j] < minAzi) minAzi = azisList[j];
+            }
+            var aziRange = maxAzi - minAzi;
+
+            if (aziRange <= d.pointingStableRange && Math.abs(bestAzi) <= d.pointingAziLimit) {
+                return bestIdx;
+            }
+            return -1;
         }
 
-        function getReadings() {
-            return Object.assign({}, currentReadings);
+        // Get all last measurements as array (for display update)
+        function getAllLastMeasurements() {
+            var result = [];
+            for (var i = 0; i < CONFIG.DEVICE_ADDRS.length; i++) {
+                var m = getLastMeasurement(CONFIG.DEVICE_ADDRS[i]);
+                result.push(m);
+            }
+            return result;
         }
 
-        return { receive: receive, processAll: processAll, getReadings: getReadings };
+        return {
+            receive: receive,
+            getCurrentPositions: getCurrentPositions,
+            getAllLastMeasurements: getAllLastMeasurements,
+            getHighlightIndex: getHighlightIndex,
+            isValidMeasurement: isValidMeasurement,
+        };
     }
 
     function startProcessingLoop() {
@@ -255,8 +334,40 @@ var APP = (function() {
     function processTick() {
         if (!dataProcessor) return;
 
-        var result = dataProcessor.processAll();
-        var readings = result.readings;
+        // Get raw last measurements (mirrors Python's _all_last_measurements)
+        var rawMeasurements = dataProcessor.getAllLastMeasurements();
+
+        // Apply alpha filtering (mirrors Python's update_display alpha filter)
+        var filteredPositions = [];
+        for (var i = 0; i < CONFIG.DEVICE_ADDRS.length; i++) {
+            var newAzi = rawMeasurements[i].azi;
+            var newDis = rawMeasurements[i].dis;
+
+            if (newAzi === null || newDis === null) {
+                filteredPositions.push({ azi: null, dis: null });
+            } else if (!state.filteredPos || state.filteredPos[i].azi === null || state.filteredPos[i].dis === null) {
+                filteredPositions.push({ azi: newAzi, dis: newDis });
+            } else {
+                var oldAzi = state.filteredPos[i].azi;
+                var oldDis = state.filteredPos[i].dis;
+                var filtAzi = oldAzi * CONFIG.DATA.smoothAlpha + newAzi * (1 - CONFIG.DATA.smoothAlpha);
+                var filtDis = oldDis * CONFIG.DATA.smoothAlpha + newDis * (1 - CONFIG.DATA.smoothAlpha);
+                filteredPositions.push({ azi: filtAzi, dis: filtDis });
+            }
+        }
+        state.filteredPos = filteredPositions;
+
+        // Convert raw azi values to degrees for display (Python divides by AZI_TO_DEG at display time)
+        var readings = {};
+        for (var i = 0; i < CONFIG.DEVICE_ADDRS.length; i++) {
+            var addr = CONFIG.DEVICE_ADDRS[i];
+            if (filteredPositions[i].azi !== null && filteredPositions[i].dis !== null) {
+                readings[addr] = {
+                    dis: filteredPositions[i].dis,
+                    azi: filteredPositions[i].azi / CONFIG.DATA.aziToDeg,  // raw → degrees for display
+                };
+            }
+        }
 
         // Update polar plot
         if (polarPlot) {
@@ -273,8 +384,8 @@ var APP = (function() {
         // Update legend
         updateLegend(readings);
 
-        // Determine best_idx and broadcast
-        var bestIdx = result.bestIdx;
+        // Determine best_idx using highlight logic (mirrors Python's get_highlight_index)
+        var bestIdx = dataProcessor.getHighlightIndex();
         if (bestIdx >= 0) {
             var targetNames = ['T1', 'T2', 'T3'];
             $('pointing-target').textContent = targetNames[bestIdx];
