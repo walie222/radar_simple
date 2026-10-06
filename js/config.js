@@ -29,8 +29,6 @@ var CONFIG = {
         pointingStableRange: 1000,     // POINTING_STABLE_RANGE
         smoothAlpha: 0.3,              // SMOOTH_ALPHA
         updateIntervalMs: 1000,        // UPDATE_INTERVAL_MS (每秒处理)
-        distStableRange: 800,          // DIST_STABLE_RANGE — 指向最小距离阈值(mm)
-        aziPointingThreshold: 5,       // AZI_POINTING_THRESHOLD — 指向最大角度阈值(°)
     },
 
     // 设备定义

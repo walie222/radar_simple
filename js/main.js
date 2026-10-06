@@ -336,29 +336,64 @@ function updateLegend(idx, dis, azi) {
 }
 
 /**
- * 严格对齐 point_demo_test1.py 中的 compute_best_idx()
+ * 严格对齐 point_demo_test1.py 中的 get_highlight_index()
+ *
+ * Python 逻辑：
+ * 1. 对每个设备计算窗口内原始 azi 均值 → device_avgs
+ * 2. 至少 MIN_VALID_DEVICES(1) 个有效设备才继续
+ * 3. best_idx = 角度均值最接近 0 的设备
+ * 4. 稳定性判定：窗口内角度极差 <= POINTING_STABLE_RANGE(1000)
+ *    且 |平均角度| <= POINTING_AZI_LIMIT(1000)
+ *    （注意：这两个阈值都是原始 azi 单位，不是度数）
  */
 function computeBestIdx() {
+    var device_avgs = {};
+
     for (var i = 0; i < 3; i++) {
         var dev = state.devices[i];
-        if (!dev) continue;
+        if (!dev || !dev.history || dev.history.length < CONFIG.DATA.smoothingWindow) continue;
 
+        // 检查数据有效性（距离不能为离群值）
         var lastDis = dev.smoothedDis;
-        var lastAzi = dev.smoothedAzi / CONFIG.DATA.aziToDeg;  // 转为度数
+        if (lastDis == null) continue;
 
-        // 必须有有效数据
-        if (lastDis == null || lastAzi == null) continue;
-
-        // 距离条件
-        if (lastDis < CONFIG.DATA.distStableRange) continue;
-
-        // 角度条件
-        if (Math.abs(lastAzi) > CONFIG.DATA.aziPointingThreshold) continue;
-
-        // 第一个满足全部条件的设备即是被指向的设备
-        return i;
+        // 计算窗口内原始 azi 均值（未除以 aziToDeg）
+        var aziSum = 0;
+        for (var j = 0; j < dev.history.length; j++) {
+            aziSum += dev.history[j].azi;
+        }
+        device_avgs[i] = aziSum / dev.history.length;
     }
-    return -1;  // 无设备满足条件
+
+    // 至少需要 MIN_VALID_DEVICES 个有效设备
+    var validKeys = Object.keys(device_avgs);
+    if (validKeys.length < 1) return -1;
+
+    // 找到角度最接近 0 的设备
+    var best_idx = -1;
+    var best_abs = Infinity;
+    for (var k = 0; k < validKeys.length; k++) {
+        var idx = parseInt(validKeys[k], 10);
+        var absAzi = Math.abs(device_avgs[idx]);
+        if (absAzi < best_abs) {
+            best_abs = absAzi;
+            best_idx = idx;
+        }
+    }
+
+    // 稳定性判定：窗口内角度极差 + 均值范围
+    var dev = state.devices[best_idx];
+    var azisList = [];
+    for (var m = 0; m < dev.history.length; m++) {
+        azisList.push(dev.history[m].azi);
+    }
+    var aziRange = Math.max.apply(null, azisList) - Math.min.apply(null, azisList);
+    var bestAzi = device_avgs[best_idx];
+
+    if (aziRange <= CONFIG.DATA.pointingStableRange && Math.abs(bestAzi) <= CONFIG.DATA.pointingAziLimit) {
+        return best_idx;
+    }
+    return -1;
 }
 
 /**
