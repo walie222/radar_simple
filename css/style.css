@@ -9,7 +9,7 @@ body {
     background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
     min-height: 100vh; color: #fff; overflow-x: hidden;
 }
-.container { max-width: 900px; margin: 0 auto; padding: 40px 20px; text-align: center; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px 20px; text-align: center; }
 h1 { font-size: 2.5em; margin-bottom: 10px; text-shadow: 0 0 20px rgba(255,200,0,0.5); }
 .subtitle { font-size: 1.1em; color: #aaa; margin-bottom: 30px; }
 h2 { font-size: 2em; margin-bottom: 20px; }
@@ -97,13 +97,15 @@ h2 { font-size: 2em; margin-bottom: 20px; }
 /* ---- 极坐标图 ---- */
 .polar-container {
     display: flex; gap: 24px; justify-content: center; align-items: flex-start;
-    margin: 30px 0; flex-wrap: wrap;
+    margin: 20px 0; flex-wrap: wrap;
 }
 #polar-canvas {
-    width: 650px; height: 650px;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    max-width: 900px;
     background: #f0f3f8; border-radius: 16px;
     box-shadow: 0 0 40px rgba(0,0,0,0.4);
-    max-width: 100%;
 }
 .polar-legend {
     background: rgba(245,246,250,0.95); border-radius: 12px; padding: 15px;

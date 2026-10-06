@@ -7,7 +7,7 @@ var PolarPlot = (function() {
         var canvas = document.getElementById(canvasId);
         if (!canvas) return null;
         var ctx = canvas.getContext('2d');
-        size = size || 650;
+        size = size || 900;
         canvas.width = size;
         canvas.height = size;
 
@@ -17,7 +17,7 @@ var PolarPlot = (function() {
             size: size,
             cx: size / 2,
             cy: size / 2,
-            maxR: size / 2 - 50,
+            maxR: size / 2 - 60,
             // devices[0]=T1(addr01), devices[1]=T2(addr02), devices[2]=T3(addr03)
             devices: [null, null, null],
             highlightIdx: -1,
@@ -63,9 +63,9 @@ var PolarPlot = (function() {
                 c.lineWidth = 1;
                 c.stroke();
                 c.fillStyle = '#b2bec3';
-                c.font = '11px sans-serif';
+                c.font = '13px sans-serif';
                 c.textAlign = 'left';
-                c.fillText(rLabel + 'mm', cx + radius + 4, cy - 4);
+                c.fillText(rLabel + 'mm', cx + radius + 5, cy - 5);
             }
 
             // Azimuth lines (every 30 degrees)
@@ -78,10 +78,10 @@ var PolarPlot = (function() {
                 c.lineWidth = a % 90 === 0 ? 1.5 : 0.5;
                 c.stroke();
 
-                var lx = cx + Math.cos(rad) * (mr + 20);
-                var ly = cy + Math.sin(rad) * (mr + 20);
+                var lx = cx + Math.cos(rad) * (mr + 25);
+                var ly = cy + Math.sin(rad) * (mr + 25);
                 c.fillStyle = '#636e72';
-                c.font = '12px sans-serif';
+                c.font = '14px sans-serif';
                 c.textAlign = 'center';
                 c.fillText(a + '\u00b0', lx, ly + 4);
             }
@@ -102,7 +102,7 @@ var PolarPlot = (function() {
                 // Highlight ring when this device is pointed at
                 if (i === self.highlightIdx) {
                     c.beginPath();
-                    c.arc(dx, dy, 20, 0, Math.PI * 2);
+                    c.arc(dx, dy, 24, 0, Math.PI * 2);
                     c.fillStyle = 'rgba(255,215,0,0.3)';
                     c.fill();
                     c.strokeStyle = '#ffd700';
