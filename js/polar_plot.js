@@ -7,7 +7,7 @@ var PolarPlot = (function() {
         var canvas = document.getElementById(canvasId);
         if (!canvas) return null;
         var ctx = canvas.getContext('2d');
-        size = size || 400;
+        size = size || 650;
         canvas.width = size;
         canvas.height = size;
 
@@ -17,7 +17,7 @@ var PolarPlot = (function() {
             size: size,
             cx: size / 2,
             cy: size / 2,
-            maxR: size / 2 - 40,
+            maxR: size / 2 - 50,
             // devices[0]=T1(addr01), devices[1]=T2(addr02), devices[2]=T3(addr03)
             devices: [null, null, null],
             highlightIdx: -1,
@@ -41,6 +41,11 @@ var PolarPlot = (function() {
             _draw(ctx);
         };
 
+        /* ---- Drawing constants ---- */
+        // Distance range: 0 ~ maxDis mm (matches typical radar readings ~2000-8000mm)
+        var MAX_DIS = 10000;   // max display distance in mm
+        var RING_STEPS = [2000, 4000, 6000, 8000, 10000];  // concentric ring labels
+
         function _draw(c) {
             var s = size, cx = self.cx, cy = self.cy, mr = self.maxR;
 
@@ -48,17 +53,19 @@ var PolarPlot = (function() {
             c.fillStyle = '#f5f6fa';
             c.fillRect(0, 0, s, s);
 
-            // Concentric circles (distance rings: 50mm, 100mm, 150mm)
-            for (var r = 50; r <= 150; r += 50) {
-                var radius = (r / 150) * mr;
+            // Concentric circles (distance rings)
+            for (var ri = 0; ri < RING_STEPS.length; ri++) {
+                var rLabel = RING_STEPS[ri];
+                var radius = (rLabel / MAX_DIS) * mr;
                 c.beginPath();
                 c.arc(cx, cy, radius, 0, Math.PI * 2);
                 c.strokeStyle = '#dfe6e9';
                 c.lineWidth = 1;
                 c.stroke();
                 c.fillStyle = '#b2bec3';
-                c.font = '10px sans-serif';
-                c.fillText(r + 'mm', cx + radius + 3, cy - 3);
+                c.font = '11px sans-serif';
+                c.textAlign = 'left';
+                c.fillText(rLabel + 'mm', cx + radius + 4, cy - 4);
             }
 
             // Azimuth lines (every 30 degrees)
@@ -71,10 +78,10 @@ var PolarPlot = (function() {
                 c.lineWidth = a % 90 === 0 ? 1.5 : 0.5;
                 c.stroke();
 
-                var lx = cx + Math.cos(rad) * (mr + 18);
-                var ly = cy + Math.sin(rad) * (mr + 18);
+                var lx = cx + Math.cos(rad) * (mr + 20);
+                var ly = cy + Math.sin(rad) * (mr + 20);
                 c.fillStyle = '#636e72';
-                c.font = '11px sans-serif';
+                c.font = '12px sans-serif';
                 c.textAlign = 'center';
                 c.fillText(a + '\u00b0', lx, ly + 4);
             }
@@ -85,7 +92,9 @@ var PolarPlot = (function() {
                 var dev = self.devices[i];
                 if (!dev) continue;
 
-                var dr = (dev.dis / 150) * mr;
+                // Clamp distance to max display range so dot stays on chart
+                var clampedDis = Math.min(dev.dis, MAX_DIS);
+                var dr = (clampedDis / MAX_DIS) * mr;
                 var drad = (dev.azi - 90) * Math.PI / 180;
                 var dx = cx + Math.cos(drad) * dr;
                 var dy = cy + Math.sin(drad) * dr;
@@ -93,7 +102,7 @@ var PolarPlot = (function() {
                 // Highlight ring when this device is pointed at
                 if (i === self.highlightIdx) {
                     c.beginPath();
-                    c.arc(dx, dy, 18, 0, Math.PI * 2);
+                    c.arc(dx, dy, 20, 0, Math.PI * 2);
                     c.fillStyle = 'rgba(255,215,0,0.3)';
                     c.fill();
                     c.strokeStyle = '#ffd700';
@@ -103,7 +112,7 @@ var PolarPlot = (function() {
 
                 // Dot
                 c.beginPath();
-                c.arc(dx, dy, 8, 0, Math.PI * 2);
+                c.arc(dx, dy, 9, 0, Math.PI * 2);
                 c.fillStyle = CONFIG.DEVICE_COLORS[i];
                 c.fill();
                 c.strokeStyle = '#fff';
@@ -112,14 +121,14 @@ var PolarPlot = (function() {
 
                 // Label
                 c.fillStyle = '#2d3436';
-                c.font = 'bold 12px sans-serif';
+                c.font = 'bold 13px sans-serif';
                 c.textAlign = 'center';
-                c.fillText(labels[i], dx, dy - 14);
+                c.fillText(labels[i], dx, dy - 16);
             }
 
             // Center dot
             c.beginPath();
-            c.arc(cx, cy, 4, 0, Math.PI * 2);
+            c.arc(cx, cy, 5, 0, Math.PI * 2);
             c.fillStyle = '#2d3436';
             c.fill();
         }
