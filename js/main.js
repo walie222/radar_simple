@@ -137,6 +137,9 @@ function enterSystem(deviceType) {
 
 // ========== PubNub Setup ==========
 function initPubNub() {
+    console.log('[PubNub] Initializing for device:', state.deviceType, 'uuid:', state.deviceId);
+    console.log('[PubNub] Channel:', CONFIG.CHANNEL_NAME);
+
     state.pubnub = new PubNub({
         publishKey: CONFIG.PUBNUB.publishKey,
         subscribeKey: CONFIG.PUBNUB.subscribeKey,
@@ -147,24 +150,49 @@ function initPubNub() {
 
     state.pubnub.addListener({
         message: function (m) {
+            console.log('[PubNub recv] channel=' + m.subscription + ' from=' + m.publisher + ' data=', m.message);
             onPubNubMessage(m.message, m.publisher);
         },
         status: function (statusEvent) {
             if (statusEvent.category === 'PNConnectedCategory') {
-                logMsg('[PubNub] 已连接到房间 ' + CONFIG.ROOM_CODE);
+                console.log('[PubNub] Connected successfully');
+                if (state.deviceType === 'P') {
+                    logMsg('[PubNub] 已连接到房间 ' + CONFIG.ROOM_CODE);
+                }
                 broadcastPresence();
+
+                // Self-test: publish a test message to verify pub/sub works
+                broadcastMessage({
+                    type: 'presence',
+                    deviceType: state.deviceType,
+                    deviceId: state.deviceId,
+                });
             }
             if (statusEvent.category === 'PNDisconnectedCategory') {
-                logMsg('[PubNub] 连接断开，正在重连...');
+                console.warn('[PubNub] Disconnected:', statusEvent.category);
+                if (state.deviceType === 'P') {
+                    logMsg('[PubNub] 连接断开，正在重连...');
+                }
             }
+            if (statusEvent.category === 'PNReconnectedCategory') {
+                console.log('[PubNub] Reconnected');
+                broadcastPresence();
+            }
+        },
+        presence: function (p) {
+            console.log('[PubNub presence]', p);
         },
     });
 }
 
 function broadcastMessage(msg) {
-    if (!state.pubnub) return;
+    if (!state.pubnub) {
+        console.warn('[Broadcast] pubnub not initialized!');
+        return;
+    }
     msg.timestamp = Date.now();
     msg.sender = state.deviceId;
+    console.log('[Broadcast] type=' + msg.type + ' target=' + (msg.target || '--') + ' channel=' + CONFIG.CHANNEL_NAME);
     state.pubnub.publish({
         channel: CONFIG.CHANNEL_NAME,
         message: msg,
