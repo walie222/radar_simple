@@ -155,7 +155,6 @@ function initPubNub() {
     });
 
     // Aggressive reconnection for mobile browsers
-    var reconnectTimer = null;
     var lastMsgTime = Date.now();
 
     state.pubnub.addListener({
@@ -244,27 +243,6 @@ function initPubNub() {
             console.log('[PubNub presence]', p);
         },
     });
-
-    // Watchdog: if no messages for 15s, force reconnection (mobile browsers throttle WS)
-    var watchdog = setInterval(function () {
-        if (Date.now() - lastMsgTime > 15000) {
-            console.warn('[Watchdog] No messages for 15s! Forcing reconnect...');
-            try {
-                state.pubnub.unsubscribe({ channels: [CONFIG.CHANNEL_NAME] });
-                setTimeout(function () {
-                    state.pubnub.subscribe({ channels: [CONFIG.CHANNEL_NAME], withPresence: false });
-                    console.log('[Watchdog] Resubscribed');
-                    broadcastMessage({
-                        type: 'presence',
-                        deviceType: state.deviceType,
-                        deviceId: state.deviceId,
-                    });
-                }, 500);
-            } catch (e) {
-                console.error('[Watchdog] Reconnect failed:', e);
-            }
-        }
-    }, 5000);
 }
 
 function broadcastMessage(msg) {
@@ -315,26 +293,7 @@ function initPScreen() {
     pUI.btnConnect.addEventListener('click', startSerialConnection);
     pUI.btnDisconnect.addEventListener('click', disconnectSerial);
 
-    // Periodic heartbeat — broadcast presence every 10s (reduced from 5s)
-    setInterval(function () {
-        if (state.isMaster && state.serialReader && state.serialReader.running) {
-            broadcastPresence();
-            // Self-test: publish a ping and verify we get it back
-            broadcastMessage({
-                type: 'ping',
-                deviceType: state.deviceType,
-                deviceId: state.deviceId,
-                ts: Date.now(),
-            });
-            // Check who's subscribed to verify T devices are connected
-            state.pubnub.hereNow({
-                channels: [CONFIG.CHANNEL_NAME],
-                includeState: true,
-            }, function (status, response) {
-                console.log('[HereNow] occupants=', response ? response.totalOccupants : '?', 'channels=', response ? response.totalChannels : '?');
-            });
-        }
-    }, 10000);
+    // No periodic broadcast needed — only send on pointing state change
 }
 
 // ========== T Screen ==========
@@ -447,28 +406,12 @@ function processData(idx, dis, azi) {
     // Step 4: Compute best_idx across ALL devices (same as Python's compute_best_idx)
     var newBestIdx = computeBestIdx();
 
-    // If best_idx changed, update highlight and broadcast
+    // ONLY broadcast when pointing state actually changes — no extra noise
     if (newBestIdx !== state.currentBestIdx) {
         console.log('[onData] bestIdx CHANGED: ' + state.currentBestIdx + ' → ' + newBestIdx);
         state.currentBestIdx = newBestIdx;
         updateHighlight(newBestIdx);
         broadcastPointingState(newBestIdx);
-    } else if (state.currentBestIdx >= 0) {
-        // Still pointing — send periodic heartbeat so late-joining T devices stay green
-        if (!state._lastHeartbeat || Date.now() - state._lastHeartbeat > 2000) {
-            broadcastPointingState(state.currentBestIdx);
-            state._lastHeartbeat = Date.now();
-        }
-    }
-
-    // Always send periodic presence ping to keep PubNub connection alive
-    if (!state._lastPing || Date.now() - state._lastPing > 5000) {
-        broadcastMessage({
-            type: 'presence',
-            deviceType: state.deviceType,
-            deviceId: state.deviceId,
-        });
-        state._lastPing = Date.now();
     }
 
     // Render polar plot with current highlight
