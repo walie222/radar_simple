@@ -146,12 +146,21 @@ function initPubNub() {
         publishKey: CONFIG.PUBNUB.publishKey,
         subscribeKey: CONFIG.PUBNUB.subscribeKey,
         uuid: state.deviceId,
+        ssl: true,
     });
 
-    state.pubnub.subscribe({ channels: [CONFIG.CHANNEL_NAME] });
+    state.pubnub.subscribe({
+        channels: [CONFIG.CHANNEL_NAME],
+        withPresence: false,
+    });
+
+    // Aggressive reconnection for mobile browsers
+    var reconnectTimer = null;
+    var lastMsgTime = Date.now();
 
     state.pubnub.addListener({
         message: function (m) {
+            lastMsgTime = Date.now();
             console.log('[PubNub recv] channel=' + m.subscription + ' from=' + m.publisher + ' data=', m.message);
             // Update T debug counter
             var msgCount = document.getElementById('t-msg-count');
@@ -235,6 +244,27 @@ function initPubNub() {
             console.log('[PubNub presence]', p);
         },
     });
+
+    // Watchdog: if no messages for 15s, force reconnection (mobile browsers throttle WS)
+    var watchdog = setInterval(function () {
+        if (Date.now() - lastMsgTime > 15000) {
+            console.warn('[Watchdog] No messages for 15s! Forcing reconnect...');
+            try {
+                state.pubnub.unsubscribe({ channels: [CONFIG.CHANNEL_NAME] });
+                setTimeout(function () {
+                    state.pubnub.subscribe({ channels: [CONFIG.CHANNEL_NAME], withPresence: false });
+                    console.log('[Watchdog] Resubscribed');
+                    broadcastMessage({
+                        type: 'presence',
+                        deviceType: state.deviceType,
+                        deviceId: state.deviceId,
+                    });
+                }, 500);
+            } catch (e) {
+                console.error('[Watchdog] Reconnect failed:', e);
+            }
+        }
+    }, 5000);
 }
 
 function broadcastMessage(msg) {
