@@ -168,6 +168,7 @@ function initPubNub() {
             onPubNubMessage(m.message, m.publisher);
         },
         status: function (statusEvent) {
+            console.log('[PubNub status] category=' + statusEvent.category);
             // Update T debug status
             var pnStatus = document.getElementById('t-pn-status');
             if (pnStatus) {
@@ -175,11 +176,17 @@ function initPubNub() {
                     pnStatus.textContent = '✅ 已连接';
                     pnStatus.style.color = '#27ae60';
                 } else if (statusEvent.category === 'PNDisconnectedCategory') {
-                    pnStatus.textContent = '❌ 断开';
+                    pnStatus.textContent = '❌ 断开 (' + statusEvent.action + ')';
                     pnStatus.style.color = '#e74c3c';
                 } else if (statusEvent.category === 'PNReconnectedCategory') {
                     pnStatus.textContent = '✅ 重连成功';
                     pnStatus.style.color = '#27ae60';
+                } else if (statusEvent.category === 'PNUnexpectedDisconnectCategory') {
+                    pnStatus.textContent = '⚠️ 异常断开';
+                    pnStatus.style.color = '#f39c12';
+                } else {
+                    pnStatus.textContent = statusEvent.category;
+                    pnStatus.style.color = '#888';
                 }
             }
 
@@ -383,6 +390,16 @@ function processData(idx, dis, azi) {
             broadcastPointingState(state.currentBestIdx);
             state._lastHeartbeat = Date.now();
         }
+    }
+
+    // Always send periodic presence ping to keep PubNub connection alive
+    if (!state._lastPing || Date.now() - state._lastPing > 5000) {
+        broadcastMessage({
+            type: 'presence',
+            deviceType: state.deviceType,
+            deviceId: state.deviceId,
+        });
+        state._lastPing = Date.now();
     }
 
     // Render polar plot with current highlight
