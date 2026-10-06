@@ -315,6 +315,12 @@ function processData(idx, dis, azi) {
         state.currentBestIdx = newBestIdx;
         updateHighlight(newBestIdx);
         broadcastPointingState(newBestIdx);
+    } else if (state.currentBestIdx >= 0) {
+        // Still pointing — send periodic heartbeat so late-joining T devices stay green
+        if (!state._lastHeartbeat || Date.now() - state._lastHeartbeat > 2000) {
+            broadcastPointingState(state.currentBestIdx);
+            state._lastHeartbeat = Date.now();
+        }
     }
 
     // Render polar plot with current highlight
@@ -445,6 +451,8 @@ function onPubNubMessage(msg, senderId) {
     // Ignore messages from self
     if (senderId === state.deviceId) return;
 
+    console.log('[T recv] msg.type=' + msg.type + ' target=' + (msg.target || '--') + ' myType=' + state.deviceType);
+
     switch (msg.type) {
         case 'presence':
             if (state.deviceType === 'P') {
@@ -467,6 +475,7 @@ function onPubNubMessage(msg, senderId) {
 }
 
 function handlePointAt(msg) {
+    console.log('[handlePointAt] msg.target=' + msg.target + ', my deviceType=' + state.deviceType);
     if (state.deviceType === msg.target) {
         // This T device is being pointed at → turn GREEN!
         tUI.statusDisplay.className = 't-status-display green';
