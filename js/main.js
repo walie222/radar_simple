@@ -435,6 +435,7 @@ function computeBestIdx() {
 
     // 至少需要 MIN_VALID_DEVICES 个有效设备
     var validKeys = Object.keys(device_avgs);
+    console.log('[computeBestIdx] validDevices=' + validKeys.length + ' avgs=', device_avgs);
     if (validKeys.length < 1) return -1;
 
     // 找到角度最接近 0 的设备
@@ -458,11 +459,13 @@ function computeBestIdx() {
     var aziRange = Math.max.apply(null, azisList) - Math.min.apply(null, azisList);
     var bestAzi = device_avgs[best_idx];
 
+    console.log('[computeBestIdx] best=' + best_idx + ' aziAvg=' + bestAzi.toFixed(1) + ' historyAzis=' + azisList.join(',') + ' range=' + aziRange + ' limitRange=' + CONFIG.DATA.pointingStableRange + ' limitAzi=' + CONFIG.DATA.pointingAziLimit);
+
     if (aziRange <= CONFIG.DATA.pointingStableRange && Math.abs(bestAzi) <= CONFIG.DATA.pointingAziLimit) {
-        console.log('[computeBestIdx] → idx=' + best_idx + ' aziAvg=' + bestAzi.toFixed(1) + ' range=' + aziRange);
+        console.log('[computeBestIdx] → PASS idx=' + best_idx);
         return best_idx;
     }
-    console.log('[computeBestIdx] FAIL idx=' + best_idx + ' aziAvg=' + bestAzi.toFixed(1) + '(limit=' + CONFIG.DATA.pointingAziLimit + ') range=' + aziRange + '(limit=' + CONFIG.DATA.pointingStableRange + ')');
+    console.log('[computeBestIdx] → FAIL (range ' + aziRange + '>' + CONFIG.DATA.pointingStableRange + '? ' + (aziRange > CONFIG.DATA.pointingStableRange) + ', absAzi ' + Math.abs(bestAzi).toFixed(1) + '>' + CONFIG.DATA.pointingAziLimit + '? ' + (Math.abs(bestAzi) > CONFIG.DATA.pointingAziLimit) + ')');
     return -1;
 }
 
