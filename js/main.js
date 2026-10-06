@@ -151,9 +151,30 @@ function initPubNub() {
     state.pubnub.addListener({
         message: function (m) {
             console.log('[PubNub recv] channel=' + m.subscription + ' from=' + m.publisher + ' data=', m.message);
+            // Update T debug counter
+            var msgCount = document.getElementById('t-msg-count');
+            if (msgCount) {
+                var c = parseInt(msgCount.textContent, 10) || 0;
+                msgCount.textContent = c + 1;
+            }
             onPubNubMessage(m.message, m.publisher);
         },
         status: function (statusEvent) {
+            // Update T debug status
+            var pnStatus = document.getElementById('t-pn-status');
+            if (pnStatus) {
+                if (statusEvent.category === 'PNConnectedCategory') {
+                    pnStatus.textContent = '✅ 已连接';
+                    pnStatus.style.color = '#27ae60';
+                } else if (statusEvent.category === 'PNDisconnectedCategory') {
+                    pnStatus.textContent = '❌ 断开';
+                    pnStatus.style.color = '#e74c3c';
+                } else if (statusEvent.category === 'PNReconnectedCategory') {
+                    pnStatus.textContent = '✅ 重连成功';
+                    pnStatus.style.color = '#27ae60';
+                }
+            }
+
             if (statusEvent.category === 'PNConnectedCategory') {
                 console.log('[PubNub] Connected successfully');
                 if (state.deviceType === 'P') {
@@ -238,6 +259,10 @@ function initTScreen(deviceType) {
     tUI.statusText.textContent = '等待指向...';
     tUI.statusBadge.textContent = '未被指向';
     tUI.statusDisplay.className = 't-status-display red';
+
+    // Update debug info
+    var debugType = document.getElementById('t-my-type');
+    if (debugType) debugType.textContent = deviceType;
 
     // Initialize PubNub
     initPubNub();
