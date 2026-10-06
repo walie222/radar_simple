@@ -10,7 +10,7 @@ var SerialReader = (function() {
             reader: null,
             running: false,
             buffer: '',
-            onData: null,  // callback(addr, dis, azi)
+            onData: null,  // callback(line, addr, dis, azi) — unparsed lines pass (line, null, null, null)
             onError: null, // callback(msg)
         };
     }
@@ -57,7 +57,9 @@ var SerialReader = (function() {
                 }
 
                 if (result.value) {
-                    self.buffer += decoder.decode(result.value, { stream: true });
+                    var text = decoder.decode(result.value, { stream: true });
+                    console.log('[SerialReader] 原始数据收到 (' + text.length + ' chars):', JSON.stringify(text));
+                    self.buffer += text;
                     var lines = self.buffer.split(/\r?\n/);
                     self.buffer = lines.pop();
 
@@ -89,14 +91,18 @@ var SerialReader = (function() {
         var m = line.match(/addr:([0-9a-zA-Z]+).*dis:(-?\d+).*azi:(-?\d+)/);
         if (m) {
             // Pad address to 2 chars (e.g. "1" -> "01"), same as Python's zfill(ADDR_WIDTH)
-            var addr = m[1].zfill ? m[1].padStart(2, '0') : (m[1].length < 2 ? '0' + m[1] : m[1]);
+            var addr = m[1].padStart(2, '0');
             var dis = parseInt(m[2], 10);
             var azi = parseInt(m[3], 10);
-            self.onData(addr, dis, azi);
+            self.onData(line, addr, dis, azi);
         } else {
-            // Log unparseable lines for debugging (only non-empty)
+            // Log unparseable lines for debugging (only non-empty) — pass through to onData with special marker
             if (line.trim()) {
                 console.warn('[SerialReader] 无法解析的行: "' + line + '"');
+                // Still call onData with the raw line so it appears in the UI log
+                if (self.onData) {
+                    self.onData(line, null, null, null);
+                }
             }
         }
     }

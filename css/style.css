@@ -103,7 +103,7 @@ h2 { font-size: 2em; margin-bottom: 20px; }
     width: 100%;
     height: auto;
     aspect-ratio: 1 / 1;
-    max-width: 900px;
+    max-width: 600px;
     background: #f0f3f8; border-radius: 16px;
     box-shadow: 0 0 40px rgba(0,0,0,0.4);
 }

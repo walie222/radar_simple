@@ -92,7 +92,7 @@ var APP = (function() {
         logMsg('主控设备已启动，等待串口连接...');
 
         // Init polar plot
-        polarPlot = PolarPlot.create('polar-canvas', 400);
+        polarPlot = PolarPlot.create('polar-canvas', 350);
 
         // Init data processor
         dataProcessor = createDataProcessor();
@@ -112,8 +112,13 @@ var APP = (function() {
         serial.onError = function(msg) { logMsg('[WARN] ' + msg, true); };
 
         // Data callback: accumulate per-device readings (raw values, like Python's parse_and_update)
-        serial.onData = function(addr, dis, azi) {
-            logMsg('[解析] addr=' + addr + ' dis=' + dis + ' azi=' + azi);
+        serial.onData = function(line, addr, dis, azi) {
+            if (addr === null) {
+                // Unparseable line — log for debugging
+                logMsg('[原始] ' + line);
+                return;
+            }
+            logMsg('[解析] ' + line);
             dataProcessor.receive(addr, dis, azi);
         };
 
