@@ -3,6 +3,8 @@
    指向逻辑严格对齐 D:\radar-demo\point_demo_test1.py
    ============================================ */
 
+console.log('[VERSION] main.js loaded at ' + new Date().toISOString());
+
 // ========== Global State ==========
 var state = {
     deviceId: generateDeviceId(),
@@ -165,6 +167,11 @@ function initPubNub() {
                 lastMsg.textContent = detail;
                 lastMsg.style.color = m.message.type === 'point_at' ? '#e74c3c' : '#888';
             }
+            // Update last receive time
+            var lastTime = document.getElementById('t-last-time');
+            if (lastTime) {
+                lastTime.textContent = new Date().toLocaleTimeString();
+            }
             onPubNubMessage(m.message, m.publisher);
         },
         status: function (statusEvent) {
@@ -205,7 +212,7 @@ function initPubNub() {
                 });
             }
             if (statusEvent.category === 'PNDisconnectedCategory') {
-                console.warn('[PubNub] Disconnected:', statusEvent.category);
+                console.warn('[PubNub] Disconnected:', statusEvent.category, 'action:', statusEvent.action);
                 if (state.deviceType === 'P') {
                     logMsg('[PubNub] 连接断开，正在重连...');
                 }
@@ -213,6 +220,15 @@ function initPubNub() {
             if (statusEvent.category === 'PNReconnectedCategory') {
                 console.log('[PubNub] Reconnected');
                 broadcastPresence();
+            }
+            if (statusEvent.category === 'PNUnexpectedDisconnectCategory') {
+                console.error('[PubNub] Unexpected disconnect! Attempting manual reconnect...');
+                // Force reconnection
+                try {
+                    state.pubnub.reconnect();
+                } catch(e) {
+                    console.error('[PubNub] Manual reconnect failed:', e);
+                }
             }
         },
         presence: function (p) {
@@ -229,17 +245,19 @@ function broadcastMessage(msg) {
     msg.timestamp = Date.now();
     msg.sender = state.deviceId;
     console.log('[Broadcast] type=' + msg.type + ' target=' + (msg.target || '--') + ' channel=' + CONFIG.CHANNEL_NAME);
-    state.pubnub.publish({
-        channel: CONFIG.CHANNEL_NAME,
-        message: msg,
-        callback: function (status, message) {
-            if (status.error) {
-                console.error('[Broadcast FAIL] status=', JSON.stringify(status));
-            } else {
-                console.log('[Broadcast OK] timetoken=', status.timetoken);
-            }
+    state.pubnub.publish(
+        {
+            channel: CONFIG.CHANNEL_NAME,
+            message: msg,
         },
-    });
+        function (status, message) {
+            if (status && status.error) {
+                console.error('[Broadcast FAIL]', JSON.stringify(status));
+            } else {
+                console.log('[Broadcast OK] timetoken=', status ? status.timetoken : 'unknown');
+            }
+        }
+    );
 }
 
 function broadcastPresence() {
@@ -267,12 +285,26 @@ function initPScreen() {
     pUI.btnConnect.addEventListener('click', startSerialConnection);
     pUI.btnDisconnect.addEventListener('click', disconnectSerial);
 
-    // Periodic heartbeat
+    // Periodic heartbeat — broadcast presence every 10s (reduced from 5s)
     setInterval(function () {
         if (state.isMaster && state.serialReader && state.serialReader.running) {
             broadcastPresence();
+            // Self-test: publish a ping and verify we get it back
+            broadcastMessage({
+                type: 'ping',
+                deviceType: state.deviceType,
+                deviceId: state.deviceId,
+                ts: Date.now(),
+            });
+            // Check who's subscribed to verify T devices are connected
+            state.pubnub.hereNow({
+                channels: [CONFIG.CHANNEL_NAME],
+                includeState: true,
+            }, function (status, response) {
+                console.log('[HereNow] occupants=', response ? response.totalOccupants : '?', 'channels=', response ? response.totalChannels : '?');
+            });
         }
-    }, 5000);
+    }, 10000);
 }
 
 // ========== T Screen ==========
