@@ -53,16 +53,26 @@ var regUI = {
 };
 
 // ========== Init ==========
-document.addEventListener('DOMContentLoaded', function () {
-    initRegistration();
-});
+// Scripts load at end of <body>, DOMContentLoaded may have already fired.
+// Run init immediately if DOM is ready, otherwise wait for the event.
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    // Small delay to ensure all scripts are parsed
+    setTimeout(initRegistration, 0);
+} else {
+    document.addEventListener('DOMContentLoaded', function () {
+        initRegistration();
+    });
+}
 
 // ========== Registration ==========
 function initRegistration() {
+    console.log('[Init] Found', regUI.deviceButtons.length, 'device buttons');
+    console.log('[Init] btnEnter element:', regUI.btnEnter);
     // Device type selection
     for (var i = 0; i < regUI.deviceButtons.length; i++) {
         (function (btn) {
             btn.addEventListener('click', function () {
+                console.log('[Click] Selected device:', btn.dataset.device);
                 selectDevice(btn);
             });
         })(regUI.deviceButtons[i]);
@@ -181,7 +191,7 @@ function initPScreen() {
     initPubNub();
 
     // Initialize polar plot
-    state.polarPlot = createPolarPlot(pUI.polarCanvas);
+    state.polarPlot = PolarPlot.create('polar-canvas');
 
     // Connect/disconnect buttons
     pUI.btnConnect.addEventListener('click', startSerialConnection);
@@ -189,7 +199,7 @@ function initPScreen() {
 
     // Periodic heartbeat
     setInterval(function () {
-        if (state.isMaster && state.serialReader && state.serialReader.connected) {
+        if (state.isMaster && state.serialReader && state.serialReader.running) {
             broadcastPresence();
         }
     }, 5000);
@@ -214,16 +224,17 @@ function startSerialConnection() {
         return;
     }
 
-    state.serialReader = new SerialReader(CONFIG.SERIAL.baudRate, onData);
+    state.serialReader = SerialReader.create();
+    state.serialReader.onData = onData;
 
-    state.serialReader.connect().then(function () {
+    SerialReader.requestPort(state.serialReader).then(function () {
         state.isMaster = true;
         pUI.statusText.textContent = '已连接';
         pUI.statusDot.className = 'status-dot on';
         pUI.btnConnect.classList.add('hidden');
         pUI.btnDisconnect.classList.remove('hidden');
         logMsg('✅ 串口已连接，开始读取数据...');
-        state.serialReader.startReading();
+        SerialReader.startReading(state.serialReader);
     }).catch(function (err) {
         logMsg('❌ 串口连接失败: ' + err.message);
         pUI.statusText.textContent = '❌ 连接失败';
@@ -232,7 +243,7 @@ function startSerialConnection() {
 
 function disconnectSerial() {
     if (state.serialReader) {
-        state.serialReader.disconnect();
+        SerialReader.close(state.serialReader);
         state.isMaster = false;
         pUI.statusText.textContent = '未连接';
         pUI.statusDot.className = 'status-dot off';
@@ -278,7 +289,8 @@ function onData(addr, dis, azi) {
     var disMm  = Math.round(dev.smoothedDis);
 
     // Update polar plot
-    state.polarPlot.update(idx, { dis: disMm, azi: aziDeg });
+    state.polarPlot.updateDevice(idx, disMm, aziDeg);
+    state.polarPlot.render();
 
     // Update legend
     updateLegend(idx, disMm, aziDeg);
