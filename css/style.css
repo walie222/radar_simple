@@ -1,0 +1,184 @@
+/* ============================================
+   雷达指向演示 - 设备登记版 样式表
+   ============================================ */
+
+/* ---- 全局 ---- */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    min-height: 100vh; color: #fff; overflow-x: hidden;
+}
+.container { max-width: 800px; margin: 0 auto; padding: 40px 20px; text-align: center; }
+h1 { font-size: 2.5em; margin-bottom: 10px; text-shadow: 0 0 20px rgba(255,200,0,0.5); }
+.subtitle { font-size: 1.1em; color: #aaa; margin-bottom: 30px; }
+h2 { font-size: 2em; margin-bottom: 20px; }
+.role-desc { color: #aaa; margin-bottom: 30px; font-size: 1em; }
+
+/* ---- 屏幕切换 ---- */
+.screen { display: none; animation: fadeIn 0.5s ease; }
+.screen.active { display: block; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+.hidden { display: none !important; }
+
+/* ---- 登记框 ---- */
+.register-box {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; padding: 40px; margin: 30px auto; max-width: 600px;
+    backdrop-filter: blur(10px);
+}
+.form-group { margin-bottom: 25px; text-align: left; }
+.form-group label { display: block; margin-bottom: 10px; font-weight: 600; color: #ddd; font-size: 1.05em; }
+.form-group input {
+    width: 100%; padding: 12px 16px; border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 8px; background: rgba(255,255,255,0.05); color: #fff; font-size: 1em;
+    transition: border-color 0.3s;
+}
+.form-group input:focus { outline: none; border-color: #ffd700; }
+.hint { color: #888; font-size: 0.9em; margin-top: 15px; }
+
+/* ---- 设备类型选择器 ---- */
+.device-type-picker {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.device-btn {
+    position: relative; background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 14px; padding: 18px 10px; color: #fff; cursor: pointer;
+    transition: all 0.25s; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.device-btn:hover:not(:disabled) {
+    border-color: #ffd700; background: rgba(255,215,0,0.1);
+    transform: translateY(-3px); box-shadow: 0 6px 20px rgba(255,215,0,0.2);
+}
+.device-btn.selected {
+    border-color: #ffd700; background: rgba(255,215,0,0.15);
+    box-shadow: 0 0 20px rgba(255,215,0,0.3);
+}
+.device-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.device-icon { font-size: 2em; }
+.device-label { font-size: 0.95em; font-weight: 600; }
+.device-status { font-size: 0.75em; color: #00ff64; margin-top: 2px; }
+
+/* ---- 已登记信息 ---- */
+.registered-info {
+    background: rgba(0,255,100,0.1); border: 1px solid rgba(0,255,100,0.3);
+    border-radius: 12px; padding: 20px; margin-top: 20px; max-width: 600px; margin-left: auto; margin-right: auto;
+}
+.registered-info h3 { color: #00ff64; margin-bottom: 10px; }
+
+/* ---- 按钮 ---- */
+.btn-primary {
+    background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; border: none;
+    padding: 14px 40px; font-size: 1.1em; font-weight: 700; border-radius: 30px;
+    cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 15px rgba(255,215,0,0.3);
+}
+.btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255,215,0,0.5); }
+.btn-primary:disabled { background: #555; color: #999; cursor: not-allowed; box-shadow: none; transform: none; }
+.btn-secondary {
+    background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2);
+    padding: 10px 30px; font-size: 1em; border-radius: 25px; cursor: pointer;
+    transition: all 0.3s; margin-top: 10px;
+}
+.btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
+
+/* ---- 串口控制 ---- */
+.serial-controls {
+    display: flex; align-items: center; justify-content: center; gap: 15px;
+    margin: 20px 0; flex-wrap: wrap;
+}
+.serial-status {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.05); padding: 8px 16px; border-radius: 20px;
+}
+.status-dot { width: 12px; height: 12px; border-radius: 50%; transition: background 0.3s; }
+.status-dot.on { background: #00ff64; box-shadow: 0 0 8px #00ff64; }
+.status-dot.off { background: #ff4444; }
+
+/* ---- 极坐标图 ---- */
+.polar-container {
+    display: flex; gap: 20px; justify-content: center; align-items: flex-start;
+    margin: 20px 0; flex-wrap: wrap;
+}
+#polar-canvas { background: #f0f3f8; border-radius: 12px; max-width: 100%; }
+.polar-legend {
+    background: rgba(245,246,250,0.95); border-radius: 12px; padding: 15px;
+    color: #2d3436; min-width: 180px;
+}
+.legend-item {
+    display: flex; flex-direction: column; gap: 4px; padding: 8px 0;
+    border-bottom: 1px solid #dfe6e9;
+}
+.legend-item:last-child { border-bottom: none; }
+.legend-color { width: 12px; height: 12px; border-radius: 3px; display: inline-block; margin-right: 6px; }
+.legend-name { font-weight: 600; font-size: 0.9em; }
+.legend-data { font-size: 0.8em; color: #636e72; }
+
+/* ---- 指向指示器 ---- */
+.pointing-indicator-panel {
+    margin: 20px 0; padding: 15px 25px;
+    background: rgba(255,255,255,0.05); border-radius: 12px;
+    display: inline-flex; align-items: center; gap: 12px;
+}
+.pointing-label { color: #aaa; font-size: 1em; }
+.pointing-target {
+    font-weight: 700; color: #ffd700; font-size: 1.3em;
+    padding: 4px 16px; border-radius: 8px; background: rgba(255,215,0,0.15);
+    min-width: 60px; display: inline-block;
+}
+.pointing-status { font-size: 0.85em; color: #888; }
+
+/* ---- 日志面板 ---- */
+.log-panel {
+    margin-top: 25px; text-align: left;
+    background: rgba(0,0,0,0.3); border-radius: 12px; padding: 15px;
+    max-width: 700px; margin-left: auto; margin-right: auto;
+}
+.log-panel h3 { color: #ffd700; margin-bottom: 10px; text-align: center; }
+.log-content {
+    max-height: 200px; overflow-y: auto; font-family: 'Consolas', monospace;
+    font-size: 0.85em; color: #ccc; line-height: 1.6;
+    padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;
+}
+.log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.log-entry .log-time { color: #888; }
+.log-entry.log-point { color: #00ff64; }
+.log-entry.log-warn { color: #ffa500; }
+
+/* ---- T 设备全屏状态显示 ---- */
+.t-device-container {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.5s ease;
+}
+.t-status-display {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: all 0.5s ease;
+}
+.t-status-display.red {
+    background: linear-gradient(135deg, #8b0000, #dc143c, #8b0000);
+}
+.t-status-display.green {
+    background: linear-gradient(135deg, #006400, #00cc00, #006400);
+}
+.t-device-header {
+    display: flex; align-items: center; gap: 15px; margin-bottom: 30px;
+}
+.t-device-icon { font-size: 4em; }
+.t-device-name { font-size: 3em; font-weight: 700; text-shadow: 0 0 30px rgba(0,0,0,0.5); }
+.t-status-text { font-size: 2em; margin-bottom: 20px; text-shadow: 0 0 20px rgba(0,0,0,0.5); }
+.t-status-badge {
+    font-size: 1.3em; padding: 10px 30px; border-radius: 30px;
+    background: rgba(0,0,0,0.3); backdrop-filter: blur(10px);
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+/* ---- 响应式 ---- */
+@media (max-width: 600px) {
+    h1 { font-size: 1.8em; }
+    .device-type-picker { grid-template-columns: repeat(2, 1fr); }
+    .polar-container { flex-direction: column; align-items: center; }
+    .serial-controls { flex-wrap: wrap; }
+    .t-device-name { font-size: 2em; }
+    .t-status-text { font-size: 1.5em; }
+}

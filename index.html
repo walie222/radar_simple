@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雷达指向演示 - 设备登记版</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- ============ 阶段 1: 设备登记 ============ -->
+    <div id="screen-register" class="screen active">
+        <div class="container">
+            <h1>📡 雷达指向演示</h1>
+            <p class="subtitle">多端接入 · 串口读取 · 实时指向反馈</p>
+
+            <div class="register-box">
+                <div class="form-group">
+                    <label for="device-name">设备名称</label>
+                    <input type="text" id="device-name" placeholder="输入你的设备名称" maxlength="12" autocomplete="off">
+                </div>
+
+                <div class="form-group">
+                    <label>选择设备类型</label>
+                    <div class="device-type-picker">
+                        <button data-device="P" class="device-btn" title="主控设备（读取串口）">
+                            <span class="device-icon">🎯</span>
+                            <span class="device-label">P (主控)</span>
+                            <span class="device-status"></span>
+                        </button>
+                        <button data-device="T1" class="device-btn" title="目标设备 1">
+                            <span class="device-icon">🔴</span>
+                            <span class="device-label">T1</span>
+                            <span class="device-status"></span>
+                        </button>
+                        <button data-device="T2" class="device-btn" title="目标设备 2">
+                            <span class="device-icon">🔴</span>
+                            <span class="device-label">T2</span>
+                            <span class="device-status"></span>
+                        </button>
+                        <button data-device="T3" class="device-btn" title="目标设备 3">
+                            <span class="device-icon">🔴</span>
+                            <span class="device-label">T3</span>
+                            <span class="device-status"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <button id="btn-enter" class="btn-primary" disabled>✅ 确认登记</button>
+                <p class="hint">请选择一个设备类型后确认登记</p>
+            </div>
+
+            <div id="registered-info" class="registered-info hidden">
+                <h3>📋 已登记信息</h3>
+                <p>设备名称：<strong id="display-device-name"></strong></p>
+                <p>设备类型：<strong id="display-device-type"></strong></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ 阶段 2: P 设备 - 串口连接 ============ -->
+    <div id="screen-p-device" class="screen">
+        <div class="container">
+            <h2>🎯 主控设备 (P)</h2>
+            <p class="role-desc">连接串口设备，系统将每秒分析数据并自动指向目标</p>
+
+            <div class="serial-controls">
+                <div class="serial-status">
+                    <span class="status-dot off" id="status-dot"></span>
+                    <span id="status-text">未连接</span>
+                </div>
+                <button id="btn-connect" class="btn-secondary">🔗 连接串口</button>
+                <button id="btn-disconnect" class="btn-secondary hidden">❌ 断开</button>
+            </div>
+
+            <!-- 极坐标图 -->
+            <div class="polar-container">
+                <canvas id="polar-canvas" width="400" height="400"></canvas>
+                <div class="polar-legend">
+                    <div class="legend-item" id="legend-0">
+                        <span class="legend-color" style="background:#e74c3c;"></span>
+                        <span class="legend-name">T1</span>
+                        <span class="legend-data">距离: --mm 角度: --°</span>
+                    </div>
+                    <div class="legend-item" id="legend-1">
+                        <span class="legend-color" style="background:#3498db;"></span>
+                        <span class="legend-name">T2</span>
+                        <span class="legend-data">距离: --mm 角度: --°</span>
+                    </div>
+                    <div class="legend-item" id="legend-2">
+                        <span class="legend-color" style="background:#2ecc71;"></span>
+                        <span class="legend-name">T3</span>
+                        <span class="legend-data">距离: --mm 角度: --°</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 指向指示器 -->
+            <div class="pointing-indicator-panel">
+                <span class="pointing-label">当前指向:</span>
+                <span class="pointing-target" id="pointing-target">--</span>
+                <span class="pointing-status" id="pointing-status">等待串口数据...</span>
+            </div>
+
+            <!-- 日志面板 -->
+            <div class="log-panel">
+                <h3>📋 日志</h3>
+                <div id="log-content" class="log-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ 阶段 3: T 设备 - 状态显示 ============ -->
+    <div id="screen-t-device" class="screen">
+        <div class="t-device-container">
+            <div id="t-status-display" class="t-status-display red">
+                <div class="t-device-header">
+                    <span class="t-device-icon">🔴</span>
+                    <span class="t-device-name" id="t-device-name"></span>
+                </div>
+                <div class="t-status-text" id="t-status-text">等待指向...</div>
+                <div class="t-status-badge" id="t-status-badge">未被指向</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Our code -->
+    <script src="js/config.js"></script>
+    <script src="js/polar_plot.js"></script>
+    <script src="js/serial_reader.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
