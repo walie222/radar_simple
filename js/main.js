@@ -1,5 +1,6 @@
 /* ============================================
    主逻辑 — 对齐当前 index.html 结构
+   指向逻辑严格对齐 D:\radar-demo\point_demo_test1.py
    ============================================ */
 
 // ========== Global State ==========
@@ -9,9 +10,7 @@ var state = {
     serialReader: null,
     polarPlot: null,
     devices: [null, null, null],
-    lastPointedAt: -1,
-    pointingStartTime: null,
-    pointingTimer: null,
+    currentBestIdx: -1,     // 当前被指向的设备索引 (-1=无)
     isMaster: false,
     pubnub: null,
 };
@@ -254,6 +253,11 @@ function disconnectSerial() {
 }
 
 // ========== Data Processing ==========
+// 严格对齐 point_demo_test1.py 的数据处理逻辑：
+// 1. 每收到一条数据，存入对应设备的原始数据队列（最多 SMOOTHING_WINDOW=5 条）
+// 2. 计算窗口均值 → EMA(alpha=0.3) 平滑
+// 3. 更新极坐标图 + 图例
+// 4. 调用 computeBestIdx() 判断指向（和 Python 完全一致）
 function onData(addr, dis, azi) {
     if (addr === null || dis === null || azi === null) return;
 
@@ -267,12 +271,13 @@ function onData(addr, dis, azi) {
         state.devices[idx] = dev;
     }
 
-    // Apply smoothing
+    // Step 1: Push raw data into window buffer (max SMOOTHING_WINDOW entries)
     dev.history.push({ dis: dis, azi: azi });
     if (dev.history.length > CONFIG.DATA.smoothingWindow) {
         dev.history.shift();
     }
 
+    // Step 2: Compute window average then apply EMA smoothing
     var avgDis = 0, avgAzi = 0;
     for (var i = 0; i < dev.history.length; i++) {
         avgDis += dev.history[i].dis;
@@ -285,84 +290,96 @@ function onData(addr, dis, azi) {
     dev.smoothedDis = alpha * avgDis + (1 - alpha) * dev.smoothedDis;
     dev.smoothedAzi = alpha * avgAzi + (1 - alpha) * dev.smoothedAzi;
 
-    var aziDeg = (dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1);
+    var aziDeg = parseFloat((dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1));
     var disMm  = Math.round(dev.smoothedDis);
 
-    // Update polar plot
+    // Step 3: Update polar plot and legend
     state.polarPlot.updateDevice(idx, disMm, aziDeg);
-    state.polarPlot.render();
 
-    // Update legend
     updateLegend(idx, disMm, aziDeg);
 
-    // Pointing logic
-    checkPointing(idx, disMm, aziDeg);
+    // Step 4: Compute best_idx across ALL devices (same as Python's compute_best_idx)
+    var newBestIdx = computeBestIdx();
 
-    // Broadcast raw data via PubNub
-    broadcastMessage({
-        type: 'raw_data',
-        addr: addr,
-        dis: disMm,
-        azi: aziDeg,
-    });
-}
-
-function updateLegend(idx, dis, azi) {
-    var legendItem = document.getElementById('legend-' + idx);
-    if (legendItem) {
-        var dataSpan = legendItem.querySelector('.legend-data');
-        if (dataSpan) {
-            dataSpan.textContent = '距离: ' + dis + 'mm  角度: ' + azi + '°';
-        }
-    }
-}
-
-function checkPointing(idx, dis, azi) {
-    var now = Date.now();
-    var stableRange = CONFIG.DATA.pointingStableRange;
-
-    if (state.lastPointedAt !== idx) {
-        state.lastPointedAt = idx;
-        state.pointingStartTime = now;
+    // If best_idx changed, update highlight and broadcast
+    if (newBestIdx !== state.currentBestIdx) {
+        state.currentBestIdx = newBestIdx;
+        updateHighlight(newBestIdx);
+        broadcastPointingState(newBestIdx);
     }
 
-    // Update pointing indicator
-    var targetType = 'T' + (idx + 1);
-    pUI.pointingTarget.textContent = CONFIG.DEVICE_ADDRS[idx] + ' (' + targetType + ')';
+    // Render polar plot with current highlight
+    state.polarPlot.setHighlight(state.currentBestIdx);
+    state.polarPlot.render();
+}
 
-    // Check pointing conditions
-    if (Math.abs(azi) <= CONFIG.DATA.pointingAziLimit &&
-        dis >= stableRange && dis <= stableRange + 500) {
+/**
+ * 严格对齐 point_demo_test1.py 中的 compute_best_idx():
+ * 按 T1→T2→T3 顺序遍历，第一个满足条件的设备即为被指向设备。
+ * 条件：距离 >= DIST_STABLE_RANGE(800mm) 且 |角度| <= AZI_POINTING_THRESHOLD(5°)
+ * 都不满足返回 -1。
+ */
+function computeBestIdx() {
+    for (var i = 0; i < 3; i++) {
+        var dev = state.devices[i];
+        if (!dev) continue;
 
-        var elapsed = ((now - state.pointingStartTime) / 1000).toFixed(1);
-        pUI.pointingStatus.textContent = '指向中 ' + elapsed + 's';
+        var lastDis = dev.smoothedDis;
+        var lastAzi = dev.smoothedAzi / CONFIG.DATA.aziToDeg;  // 转为度数
 
-        if (!state.pointingTimer) {
-            state.pointingTimer = setInterval(function () {
-                var e = ((Date.now() - state.pointingStartTime) / 1000).toFixed(1);
-                pUI.pointingStatus.textContent = '指向中 ' + e + 's';
-            }, 100);
-        }
+        // 必须有有效数据
+        if (lastDis == null || lastAzi == null) continue;
 
-        // Broadcast pointing event when stable (>1s)
-        if (parseFloat(elapsed) >= 1.0) {
-            broadcastMessage({
-                type: 'point_at',
-                target: targetType,
-                dis: dis,
-                azi: azi,
-                duration: parseFloat(elapsed),
-            });
-        }
+        // 距离条件
+        if (lastDis < CONFIG.DATA.distStableRange) continue;
+
+        // 角度条件
+        if (Math.abs(lastAzi) > CONFIG.DATA.aziPointingThreshold) continue;
+
+        // 第一个满足全部条件的设备即是被指向的设备
+        return i;
+    }
+    return -1;  // 无设备满足条件
+}
+
+/**
+ * 更新极坐标图高亮 + UI 指示器
+ */
+function updateHighlight(bestIdx) {
+    if (bestIdx >= 0) {
+        var targetType = 'T' + (bestIdx + 1);
+        var dev = state.devices[bestIdx];
+        var dis = Math.round(dev.smoothedDis);
+        var azi = parseFloat((dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1));
+
+        pUI.pointingTarget.textContent = CONFIG.DEVICE_ADDRS[bestIdx] + ' (' + targetType + ')';
+        pUI.pointingStatus.textContent = '指向中 | 距离:' + dis + 'mm 角度:' + azi + '°';
+        logMsg('🎯 指向 ' + targetType + ' (距离:' + dis + 'mm, 角度:' + azi + '°)');
     } else {
-        // Reset pointing timer
-        if (state.pointingTimer) {
-            clearInterval(state.pointingTimer);
-            state.pointingTimer = null;
-        }
-        pUI.pointingStatus.textContent = '等待稳定指向...';
+        pUI.pointingTarget.textContent = '--';
+        pUI.pointingStatus.textContent = '等待串口数据...';
+    }
+}
 
-        // Broadcast pointing release
+/**
+ * 通过 PubNub 广播当前指向状态给所有 T 设备
+ */
+function broadcastPointingState(bestIdx) {
+    if (!state.pubnub) return;
+
+    if (bestIdx >= 0) {
+        var targetType = 'T' + (bestIdx + 1);
+        var dev = state.devices[bestIdx];
+        var dis = Math.round(dev.smoothedDis);
+        var azi = parseFloat((dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1));
+
+        broadcastMessage({
+            type: 'point_at',
+            target: targetType,
+            dis: dis,
+            azi: azi,
+        });
+    } else {
         broadcastMessage({
             type: 'point_stop',
         });
