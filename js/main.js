@@ -458,8 +458,10 @@ function computeBestIdx() {
     var bestAzi = device_avgs[best_idx];
 
     if (aziRange <= CONFIG.DATA.pointingStableRange && Math.abs(bestAzi) <= CONFIG.DATA.pointingAziLimit) {
+        console.log('[computeBestIdx] → idx=' + best_idx + ' aziAvg=' + bestAzi.toFixed(1) + ' range=' + aziRange);
         return best_idx;
     }
+    console.log('[computeBestIdx] FAIL idx=' + best_idx + ' aziAvg=' + bestAzi.toFixed(1) + '(limit=' + CONFIG.DATA.pointingAziLimit + ') range=' + aziRange + '(limit=' + CONFIG.DATA.pointingStableRange + ')');
     return -1;
 }
 
