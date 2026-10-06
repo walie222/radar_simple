@@ -373,6 +373,7 @@ function processData(idx, dis, azi) {
 
     // If best_idx changed, update highlight and broadcast
     if (newBestIdx !== state.currentBestIdx) {
+        console.log('[onData] bestIdx CHANGED: ' + state.currentBestIdx + ' → ' + newBestIdx);
         state.currentBestIdx = newBestIdx;
         updateHighlight(newBestIdx);
         broadcastPointingState(newBestIdx);
