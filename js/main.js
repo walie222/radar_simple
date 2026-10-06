@@ -15,6 +15,10 @@ var state = {
     currentBestIdx: -1,     // 当前被指向的设备索引 (-1=无)
     isMaster: false,
     pubnub: null,
+    pnListener: null,       // keep listener reference to prevent GC
+    // Debounce: only broadcast after N consecutive frames agree
+    _debounceCount: 0,
+    _debounceTarget: -1,
 };
 
 // ========== DOM References (aligned with current index.html) ==========
@@ -160,27 +164,31 @@ function initPubNub() {
     state.pubnub.addListener({
         message: function (m) {
             lastMsgTime = Date.now();
-            console.log('[PubNub recv] channel=' + m.subscription + ' from=' + m.publisher + ' data=', m.message);
-            // Update T debug counter
-            var msgCount = document.getElementById('t-msg-count');
-            if (msgCount) {
-                var c = parseInt(msgCount.textContent, 10) || 0;
-                msgCount.textContent = c + 1;
+            try {
+                console.log('[PubNub recv] channel=' + m.subscription + ' from=' + m.publisher + ' data=', m.message);
+                // Update T debug counter
+                var msgCount = document.getElementById('t-msg-count');
+                if (msgCount) {
+                    var c = parseInt(msgCount.textContent, 10) || 0;
+                    msgCount.textContent = c + 1;
+                }
+                // Show last message type and target
+                var lastMsg = document.getElementById('t-last-msg');
+                if (lastMsg) {
+                    var detail = m.message.type || '?';
+                    if (m.message.target) detail += '(' + m.message.target + ')';
+                    lastMsg.textContent = detail;
+                    lastMsg.style.color = m.message.type === 'point_at' ? '#e74c3c' : '#888';
+                }
+                // Update last receive time
+                var lastTime = document.getElementById('t-last-time');
+                if (lastTime) {
+                    lastTime.textContent = new Date().toLocaleTimeString();
+                }
+                onPubNubMessage(m.message, m.publisher);
+            } catch (e) {
+                console.error('[PubNub recv ERROR]', e);
             }
-            // Show last message type and target
-            var lastMsg = document.getElementById('t-last-msg');
-            if (lastMsg) {
-                var detail = m.message.type || '?';
-                if (m.message.target) detail += '(' + m.message.target + ')';
-                lastMsg.textContent = detail;
-                lastMsg.style.color = m.message.type === 'point_at' ? '#e74c3c' : '#888';
-            }
-            // Update last receive time
-            var lastTime = document.getElementById('t-last-time');
-            if (lastTime) {
-                lastTime.textContent = new Date().toLocaleTimeString();
-            }
-            onPubNubMessage(m.message, m.publisher);
         },
         status: function (statusEvent) {
             console.log('[PubNub status] category=' + statusEvent.category);
@@ -210,14 +218,6 @@ function initPubNub() {
                 if (state.deviceType === 'P') {
                     logMsg('[PubNub] 已连接到房间 ' + CONFIG.ROOM_CODE);
                 }
-                broadcastPresence();
-
-                // Self-test: publish a test message to verify pub/sub works
-                broadcastMessage({
-                    type: 'presence',
-                    deviceType: state.deviceType,
-                    deviceId: state.deviceId,
-                });
             }
             if (statusEvent.category === 'PNDisconnectedCategory') {
                 console.warn('[PubNub] Disconnected:', statusEvent.category, 'action:', statusEvent.action);
@@ -227,7 +227,6 @@ function initPubNub() {
             }
             if (statusEvent.category === 'PNReconnectedCategory') {
                 console.log('[PubNub] Reconnected');
-                broadcastPresence();
             }
             if (statusEvent.category === 'PNUnexpectedDisconnectCategory') {
                 console.error('[PubNub] Unexpected disconnect! Attempting manual reconnect...');
@@ -406,16 +405,25 @@ function processData(idx, dis, azi) {
     // Step 4: Compute best_idx across ALL devices (same as Python's compute_best_idx)
     var newBestIdx = computeBestIdx();
 
-    // ONLY broadcast when pointing state actually changes — no extra noise
-    if (newBestIdx !== state.currentBestIdx) {
-        console.log('[onData] bestIdx CHANGED: ' + state.currentBestIdx + ' → ' + newBestIdx);
+    // Debounce: only broadcast after 3 consecutive frames agree on the same target
+    if (newBestIdx === state._debounceTarget) {
+        state._debounceCount++;
+    } else {
+        state._debounceTarget = newBestIdx;
+        state._debounceCount = 1;
+    }
+
+    var DEBOUNCE_FRAMES = 3; // ~150ms at 20Hz serial rate
+
+    if (state._debounceCount >= DEBOUNCE_FRAMES && newBestIdx !== state.currentBestIdx) {
+        console.log('[onData] bestIdx STABLE & CHANGED: ' + state.currentBestIdx + ' → ' + newBestIdx + ' (after ' + state._debounceCount + ' frames)');
         state.currentBestIdx = newBestIdx;
         updateHighlight(newBestIdx);
         broadcastPointingState(newBestIdx);
     }
 
-    // Render polar plot with current highlight
-    state.polarPlot.setHighlight(state.currentBestIdx);
+    // Render polar plot with current highlight (always use latest, not debounced)
+    state.polarPlot.setHighlight(newBestIdx);
     state.polarPlot.render();
 }
 
