@@ -157,6 +157,14 @@ function initPubNub() {
                 var c = parseInt(msgCount.textContent, 10) || 0;
                 msgCount.textContent = c + 1;
             }
+            // Show last message type and target
+            var lastMsg = document.getElementById('t-last-msg');
+            if (lastMsg) {
+                var detail = m.message.type || '?';
+                if (m.message.target) detail += '(' + m.message.target + ')';
+                lastMsg.textContent = detail;
+                lastMsg.style.color = m.message.type === 'point_at' ? '#e74c3c' : '#888';
+            }
             onPubNubMessage(m.message, m.publisher);
         },
         status: function (statusEvent) {
@@ -528,8 +536,9 @@ function onPubNubMessage(msg, senderId) {
 }
 
 function handlePointAt(msg) {
-    console.log('[handlePointAt] msg.target=' + msg.target + ', my deviceType=' + state.deviceType);
-    if (state.deviceType === msg.target) {
+    var match = state.deviceType === msg.target;
+    console.log('[handlePointAt] msg.target=' + msg.target + '(type:' + typeof msg.target + ') my deviceType=' + state.deviceType + '(type:' + typeof state.deviceType + ') match=' + match);
+    if (match) {
         // This T device is being pointed at → turn GREEN!
         tUI.statusDisplay.className = 't-status-display green';
         tUI.deviceIcon.textContent = '🟢';
