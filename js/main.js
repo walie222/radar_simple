@@ -232,6 +232,13 @@ function broadcastMessage(msg) {
     state.pubnub.publish({
         channel: CONFIG.CHANNEL_NAME,
         message: msg,
+        callback: function (status, message) {
+            if (status.error) {
+                console.error('[Broadcast FAIL] status=', JSON.stringify(status));
+            } else {
+                console.log('[Broadcast OK] timetoken=', status.timetoken);
+            }
+        },
     });
 }
 
