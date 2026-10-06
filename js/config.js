@@ -20,15 +20,17 @@ var CONFIG = {
 
     // 数据处理参数（与 point_demo_test1.py 完全一致）
     DATA: {
-        smoothingWindow: 5,       // SMOOTHING_WINDOW
-        aziToDeg: 100.0,         // AZI_TO_DEG
-        maxDisplayAzi: 90,       // MAX_DISPLAY_AZI
-        aziOutlierThreshold: 3000, // AZI_OUTLIER_THRESHOLD
-        disOutlierThreshold: 2000, // DIS_OUTLIER_THRESHOLD
-        pointingAziLimit: 1000,   // POINTING_AZI_LIMIT
-        pointingStableRange: 1000, // POINTING_STABLE_RANGE
-        smoothAlpha: 0.3,         // SMOOTH_ALPHA
-        updateIntervalMs: 1000,   // UPDATE_INTERVAL_MS (每秒处理)
+        smoothingWindow: 5,             // SMOOTHING_WINDOW
+        aziToDeg: 100.0,               // AZI_TO_DEG
+        maxDisplayAzi: 90,             // MAX_DISPLAY_AZI
+        aziOutlierThreshold: 3000,     // AZI_OUTLIER_THRESHOLD
+        disOutlierThreshold: 2000,     // DIS_OUTLIER_THRESHOLD
+        pointingAziLimit: 1000,        // POINTING_AZI_LIMIT
+        pointingStableRange: 1000,     // POINTING_STABLE_RANGE
+        smoothAlpha: 0.3,              // SMOOTH_ALPHA
+        updateIntervalMs: 1000,        // UPDATE_INTERVAL_MS (每秒处理)
+        distStableRange: 800,          // DIST_STABLE_RANGE — 指向最小距离阈值(mm)
+        aziPointingThreshold: 5,       // AZI_POINTING_THRESHOLD — 指向最大角度阈值(°)
     },
 
     // 设备定义
