@@ -1,6 +1,6 @@
 /* ============================================
    主逻辑 — 对齐当前 index.html 结构
-   指向逻辑严格对齐 D:\radar-demo\point_demo_test1.py
+   指向逻辑严格对齐 D:\radar-demo\point_demo.py
    ============================================ */
 
 console.log('[VERSION] main.js loaded at ' + new Date().toISOString());
