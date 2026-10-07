@@ -4,28 +4,30 @@
    ============================================ */
 
 var PolarPlot = (function() {
-    function create(canvasId, size) {
+    function create(canvasId) {
         var canvas = document.getElementById(canvasId);
         if (!canvas) return null;
         var ctx = canvas.getContext('2d');
-        size = size || 900;
-        canvas.width = size;
-        canvas.height = size;
+
+        /* ---- 画布尺寸（横版，适配半圆）---- */
+        var W = 1000, H = 650;
+        canvas.width = W;
+        canvas.height = H;
 
         /* ---- 画布几何 ---- */
-        // 圆心放在底部，上方留出角度标注空间
-        var CENTER_Y_RATIO = 0.85;       // 圆心纵坐标占比（与 Python 一致）
-        var ANGLE_LABEL_MARGIN = 40;     // 顶部留给角度标注的边距
-        var MIN_RADIUS = 50;             // 最小圆弧半径
-        var cx = size / 2;
-        var cy = size * CENTER_Y_RATIO;
-        var maxR = Math.min(size / 2 - ANGLE_LABEL_MARGIN, cy - ANGLE_LABEL_MARGIN);
-        if (maxR < MIN_RADIUS) maxR = MIN_RADIUS;
+        var PAD_TOP = 50;            // 顶部留给角度标注
+        var PAD_BOTTOM = 40;         // 底部边距
+        var PAD_LEFT = 60;           // 左侧边距
+        var PAD_RIGHT = 60;          // 右侧边距
+        var cx = W / 2;              // 圆心 X = 画布正中
+        var cy = H - PAD_BOTTOM;     // 圆心 Y = 接近底部
+        var maxR = Math.min(cy - PAD_TOP, cx - PAD_LEFT, cx - PAD_RIGHT);
 
         var self = {
             canvas: canvas,
             ctx: ctx,
-            size: size,
+            w: W,
+            h: H,
             cx: cx,
             cy: cy,
             maxR: maxR,
@@ -87,7 +89,7 @@ var PolarPlot = (function() {
         }
 
         function _draw(c) {
-            var s = size, mr = self.maxR;
+            var w = W, h = H, mr = self.maxR;
             var MAX_DIS = computeScale();
 
             // Build ring labels dynamically
@@ -98,13 +100,13 @@ var PolarPlot = (function() {
 
             // ===== 背景 =====
             c.fillStyle = '#f5f6fa';
-            c.fillRect(0, 0, s, s);
+            c.fillRect(0, 0, w, h);
 
             // ===== 扇形外边框（上半圆弧 + 底边）=====
             c.beginPath();
             c.arc(cx, cy, mr, Math.PI, 2 * Math.PI, false); // 从 π(左) 逆时针到 2π(右)，即上半圆
             c.strokeStyle = '#94a3b8';
-            c.lineWidth = 2;
+            c.lineWidth = 2.5;
             c.stroke();
             // 底边
             c.beginPath();
@@ -119,16 +121,16 @@ var PolarPlot = (function() {
                 c.beginPath();
                 c.arc(cx, cy, radius, Math.PI, 2 * Math.PI, false);
                 c.strokeStyle = '#cbd5e1';
-                c.lineWidth = 1;
+                c.lineWidth = 1.2;
                 c.setLineDash([5, 5]);
                 c.stroke();
                 c.setLineDash([]);
 
                 // 标签（画在右侧弧上）
-                c.fillStyle = '#b2bec3';
-                c.font = '13px sans-serif';
+                c.fillStyle = '#64748b';
+                c.font = 'bold 15px sans-serif';
                 c.textAlign = 'left';
-                c.fillText(rLabel + 'mm', cx + radius + 5, cy - 5);
+                c.fillText(rLabel + 'mm', cx + radius + 8, cy - 8);
             }
 
             // ===== 径向线（每 30° 一条）=====
@@ -146,12 +148,12 @@ var PolarPlot = (function() {
                     continue;
                 } else if (a === 0) {
                     c.strokeStyle = '#94a3b8';
-                    c.lineWidth = 1;
-                    c.setLineDash([5, 5]);
+                    c.lineWidth = 1.5;
+                    c.setLineDash([6, 6]);
                 } else {
                     c.strokeStyle = '#e2e8f0';
                     c.lineWidth = 1;
-                    c.setLineDash([3, 3]);
+                    c.setLineDash([4, 4]);
                 }
                 c.stroke();
                 c.setLineDash([]);
@@ -161,12 +163,12 @@ var PolarPlot = (function() {
             for (var a = -MAX_DISPLAY_AZI; a <= MAX_DISPLAY_AZI; a += 30) {
                 var rad = aziToRad(a);
                 var label = CARDINAL_LABELS[String(a)] || (a + '°');
-                var textR = mr + 22;
+                var textR = mr + 28;
                 var tx = cx + textR * Math.cos(rad);
                 var ty = cy - textR * Math.sin(rad);
 
-                c.fillStyle = '#475569';
-                c.font = '14px sans-serif';
+                c.fillStyle = '#334155';
+                c.font = 'bold 16px sans-serif';
                 c.textAlign = 'center';
                 c.textBaseline = 'middle';
                 c.fillText(label, tx, ty);
@@ -174,8 +176,8 @@ var PolarPlot = (function() {
 
             // ===== 中心点 =====
             c.beginPath();
-            c.arc(cx, cy, 5, 0, Math.PI * 2);
-            c.fillStyle = '#64748b';
+            c.arc(cx, cy, 6, 0, Math.PI * 2);
+            c.fillStyle = '#475569';
             c.fill();
 
             // ===== 设备数据点 =====
@@ -199,7 +201,7 @@ var PolarPlot = (function() {
                 c.moveTo(cx, cy);
                 c.lineTo(dx, dy);
                 c.strokeStyle = CONFIG.DEVICE_COLORS[i] + '7F'; // 50% alpha hex
-                c.lineWidth = 1.2;
+                c.lineWidth = 1.5;
                 c.setLineDash([6, 4]);
                 c.stroke();
                 c.setLineDash([]);
@@ -208,32 +210,32 @@ var PolarPlot = (function() {
                 if (i === self.highlightIdx) {
                     // 外发光
                     c.beginPath();
-                    c.arc(dx, dy, 20, 0, Math.PI * 2);
+                    c.arc(dx, dy, 22, 0, Math.PI * 2);
                     c.fillStyle = 'rgba(0, 230, 118, 0.25)';
                     c.fill();
                     // 金色光环
                     c.beginPath();
-                    c.arc(dx, dy, 24, 0, Math.PI * 2);
+                    c.arc(dx, dy, 26, 0, Math.PI * 2);
                     c.strokeStyle = '#ffd700';
-                    c.lineWidth = 3;
+                    c.lineWidth = 3.5;
                     c.stroke();
                 }
 
                 // 实心圆点
                 c.beginPath();
-                c.arc(dx, dy, 8, 0, Math.PI * 2);
+                c.arc(dx, dy, 9, 0, Math.PI * 2);
                 c.fillStyle = CONFIG.DEVICE_COLORS[i];
                 c.fill();
                 c.strokeStyle = '#fff';
-                c.lineWidth = 2;
+                c.lineWidth = 2.5;
                 c.stroke();
 
                 // 标签
-                c.fillStyle = '#2d3436';
-                c.font = 'bold 13px sans-serif';
+                c.fillStyle = '#1e293b';
+                c.font = 'bold 16px sans-serif';
                 c.textAlign = 'center';
                 c.textBaseline = 'alphabetic';
-                c.fillText(labels[i], dx, dy - 18);
+                c.fillText(labels[i], dx, dy - 22);
             }
         }
 
