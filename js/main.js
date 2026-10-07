@@ -33,6 +33,7 @@ var pUI = {
     statusText:     document.getElementById('status-text'),
     btnConnect:     document.getElementById('btn-connect'),
     btnDisconnect:  document.getElementById('btn-disconnect'),
+    btnSettings:    document.getElementById('btn-settings'),
     polarCanvas:    document.getElementById('polar-canvas'),
     logContent:     document.getElementById('log-content'),
     pointingTarget: document.getElementById('pointing-target'),
@@ -291,6 +292,9 @@ function initPScreen() {
     // Connect/disconnect buttons
     pUI.btnConnect.addEventListener('click', startSerialConnection);
     pUI.btnDisconnect.addEventListener('click', disconnectSerial);
+
+    // Settings panel
+    initSettingsPanel();
 
     // No periodic broadcast needed — only send on pointing state change
 }
@@ -666,6 +670,128 @@ function handlePointStop() {
         tUI.statusText.textContent = '等待指向...';
         tUI.statusBadge.textContent = '未被指向';
     }
+}
+
+// ========== Settings Panel ==========
+var DEFAULT_SETTINGS = {
+    labels: ['设备1', '设备2', '设备3'],
+    smoothingWindow: 5,
+    aziOutlierThreshold: 3000,
+    disOutlierThreshold: 2000,
+    pointingAziLimit: 1000,
+    pointingStableRange: 1000,
+    smoothAlpha: 0.3,
+};
+
+var settingsUI = {};
+
+function initSettingsPanel() {
+    settingsUI.overlay   = document.getElementById('settings-overlay');
+    settingsUI.btnSave   = document.getElementById('btn-settings-save');
+    settingsUI.btnReset  = document.getElementById('btn-settings-reset');
+
+    // Open
+    pUI.btnSettings.addEventListener('click', function () {
+        populateSettingsForm();
+        settingsUI.overlay.classList.remove('hidden');
+    });
+
+    // Close on overlay background click
+    settingsUI.overlay.addEventListener('click', function (e) {
+        if (e.target === settingsUI.overlay) closeSettings();
+    });
+
+    // Save
+    settingsUI.btnSave.addEventListener('click', function () {
+        applySettingsFromForm();
+        closeSettings();
+    });
+
+    // Reset to defaults
+    settingsUI.btnReset.addEventListener('click', function () {
+        resetSettingsToDefaults();
+        populateSettingsForm();
+    });
+}
+
+function closeSettings() {
+    settingsUI.overlay.classList.add('hidden');
+}
+
+function populateSettingsForm() {
+    for (var i = 0; i < 3; i++) {
+        document.getElementById('set-label-' + i).value = CONFIG.DEVICE_LABELS[i] || DEFAULT_SETTINGS.labels[i];
+    }
+    document.getElementById('set-smoothing-window').value      = CONFIG.DATA.smoothingWindow;
+    document.getElementById('set-azi-outlier').value            = CONFIG.DATA.aziOutlierThreshold;
+    document.getElementById('set-dis-outlier').value            = CONFIG.DATA.disOutlierThreshold;
+    document.getElementById('set-pointing-azi-limit').value     = CONFIG.DATA.pointingAziLimit;
+    document.getElementById('set-pointing-stable-range').value  = CONFIG.DATA.pointingStableRange;
+    document.getElementById('set-smooth-alpha').value           = CONFIG.DATA.smoothAlpha;
+}
+
+function readSettingsForm() {
+    var labels = [];
+    for (var i = 0; i < 3; i++) {
+        labels.push(document.getElementById('set-label-' + i).value.trim() || DEFAULT_SETTINGS.labels[i]);
+    }
+    return {
+        labels:              labels,
+        smoothingWindow:     parseInt(document.getElementById('set-smoothing-window').value, 10),
+        aziOutlierThreshold: parseInt(document.getElementById('set-azi-outlier').value, 10),
+        disOutlierThreshold: parseInt(document.getElementById('set-dis-outlier').value, 10),
+        pointingAziLimit:    parseInt(document.getElementById('set-pointing-azi-limit').value, 10),
+        pointingStableRange: parseInt(document.getElementById('set-pointing-stable-range').value, 10),
+        smoothAlpha:         parseFloat(document.getElementById('set-smooth-alpha').value),
+    };
+}
+
+function resetSettingsToDefaults() {
+    CONFIG.DEVICE_LABELS = DEFAULT_SETTINGS.labels.slice();
+    CONFIG.DATA.smoothingWindow      = DEFAULT_SETTINGS.smoothingWindow;
+    CONFIG.DATA.aziOutlierThreshold  = DEFAULT_SETTINGS.aziOutlierThreshold;
+    CONFIG.DATA.disOutlierThreshold  = DEFAULT_SETTINGS.disOutlierThreshold;
+    CONFIG.DATA.pointingAziLimit     = DEFAULT_SETTINGS.pointingAziLimit;
+    CONFIG.DATA.pointingStableRange  = DEFAULT_SETTINGS.pointingStableRange;
+    CONFIG.DATA.smoothAlpha          = DEFAULT_SETTINGS.smoothAlpha;
+}
+
+function applySettingsFromForm() {
+    var s = readSettingsForm();
+
+    // Validate ranges
+    if (isNaN(s.smoothingWindow) || s.smoothingWindow < 1) s.smoothingWindow = DEFAULT_SETTINGS.smoothingWindow;
+    if (isNaN(s.aziOutlierThreshold) || s.aziOutlierThreshold < 100) s.aziOutlierThreshold = DEFAULT_SETTINGS.aziOutlierThreshold;
+    if (isNaN(s.disOutlierThreshold) || s.disOutlierThreshold < 100) s.disOutlierThreshold = DEFAULT_SETTINGS.disOutlierThreshold;
+    if (isNaN(s.pointingAziLimit) || s.pointingAziLimit < 100) s.pointingAziLimit = DEFAULT_SETTINGS.pointingAziLimit;
+    if (isNaN(s.pointingStableRange) || s.pointingStableRange < 100) s.pointingStableRange = DEFAULT_SETTINGS.pointingStableRange;
+    if (isNaN(s.smoothAlpha) || s.smoothAlpha < 0.05) s.smoothAlpha = DEFAULT_SETTINGS.smoothAlpha;
+    if (s.smoothAlpha > 1) s.smoothAlpha = 1;
+
+    // Apply to CONFIG
+    CONFIG.DEVICE_LABELS = s.labels;
+    CONFIG.DATA.smoothingWindow      = s.smoothingWindow;
+    CONFIG.DATA.aziOutlierThreshold  = s.aziOutlierThreshold;
+    CONFIG.DATA.disOutlierThreshold  = s.disOutlierThreshold;
+    CONFIG.DATA.pointingAziLimit     = s.pointingAziLimit;
+    CONFIG.DATA.pointingStableRange  = s.pointingStableRange;
+    CONFIG.DATA.smoothAlpha          = s.smoothAlpha;
+
+    // Refresh legend labels immediately
+    for (var i = 0; i < 3; i++) {
+        var nameSpan = document.querySelector('#legend-' + i + ' .legend-name');
+        if (nameSpan) nameSpan.textContent = s.labels[i];
+    }
+
+    // Clear device histories so new window size takes effect immediately
+    for (var j = 0; j < state.devices.length; j++) {
+        if (state.devices[j]) state.devices[j].history = [];
+    }
+
+    logMsg('⚙️ 参数已更新: 窗口=' + s.smoothingWindow +
+           ' | 离群(角度/距离)=' + s.aziOutlierThreshold + '/' + s.disOutlierThreshold +
+           ' | 指向(偏差/稳定)=' + s.pointingAziLimit + '/' + s.pointingStableRange +
+           ' | EMA=' + s.smoothAlpha);
 }
 
 // ========== Logging ==========

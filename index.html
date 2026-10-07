@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>雷达指向演示 - 设备登记版</title>
-    <link rel="stylesheet" href="css/style.css?v=20261007g">
+    <link rel="stylesheet" href="css/style.css?v=20261007h">
 </head>
 <body>
     <!-- ============ 阶段 1: 设备登记 ============ -->
@@ -70,6 +70,7 @@
                 </div>
                 <button id="btn-connect" class="btn-secondary">🔗 连接串口</button>
                 <button id="btn-disconnect" class="btn-secondary hidden">❌ 断开</button>
+                <button id="btn-settings" class="btn-secondary" title="参数设置">⚙️ 设置</button>
             </div>
 
             <!-- 极坐标图 -->
@@ -128,12 +129,89 @@
         </div>
     </div>
 
+    <!-- ============ 设置面板 (Settings Modal) ============ -->
+    <div id="settings-overlay" class="overlay hidden">
+        <div class="settings-box">
+            <h2>⚙️ 参数设置</h2>
+            <p style="color:#aaa;margin-bottom:16px;font-size:0.95em;">修改后点击「保存」即时生效，无需刷新页面</p>
+
+            <div class="settings-grid">
+                <!-- DEVICE_LABELS -->
+                <div class="setting-group">
+                    <h3>📛 设备标签</h3>
+                    <div class="setting-row">
+                        <label>设备 1</label>
+                        <input type="text" id="set-label-0" value="设备1">
+                    </div>
+                    <div class="setting-row">
+                        <label>设备 2</label>
+                        <input type="text" id="set-label-1" value="设备2">
+                    </div>
+                    <div class="setting-row">
+                        <label>设备 3</label>
+                        <input type="text" id="set-label-2" value="设备3">
+                    </div>
+                </div>
+
+                <!-- SMOOTHING_WINDOW -->
+                <div class="setting-group">
+                    <h3>📊 数据处理</h3>
+                    <div class="setting-row">
+                        <label>平滑窗口长度</label>
+                        <input type="number" id="set-smoothing-window" min="1" max="20" step="1" value="5">
+                        <span class="setting-desc">累积到该数量后才开始显示与判定</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>EMA 平滑系数</label>
+                        <input type="number" id="set-smooth-alpha" min="0.05" max="1" step="0.05" value="0.3">
+                        <span class="setting-desc">越大响应越快但越不平滑，越小越平滑但响应越慢</span>
+                    </div>
+                </div>
+
+                <!-- OUTLIER THRESHOLDS -->
+                <div class="setting-group">
+                    <h3>🎯 离群检测</h3>
+                    <div class="setting-row">
+                        <label>角度离群阈值</label>
+                        <input type="number" id="set-azi-outlier" min="100" max="10000" step="100" value="3000">
+                        <span class="setting-desc">最新角度与历史均值偏差超此值视为无效</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>距离离群阈值</label>
+                        <input type="number" id="set-dis-outlier" min="100" max="10000" step="100" value="2000">
+                        <span class="setting-desc">最新距离与历史均值偏差超此值视为无效</span>
+                    </div>
+                </div>
+
+                <!-- POINTING -->
+                <div class="setting-group">
+                    <h3>🔍 指向判定</h3>
+                    <div class="setting-row">
+                        <label>指向角度偏差上限</label>
+                        <input type="number" id="set-pointing-azi-limit" min="100" max="5000" step="100" value="1000">
+                        <span class="setting-desc">平均角度距 0° 的最大偏差（±10°）</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>指向稳定范围</label>
+                        <input type="number" id="set-pointing-stable-range" min="100" max="5000" step="100" value="1000">
+                        <span class="setting-desc">窗口内角度极差上限，超过视为不稳定</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-actions">
+                <button id="btn-settings-reset" class="btn-secondary">恢复默认</button>
+                <button id="btn-settings-save" class="btn-primary">✅ 保存并应用</button>
+            </div>
+        </div>
+    </div>
+
     <!-- PubNub SDK for cross-device messaging -->
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.27.3.js"></script>
     <!-- Our code -->
-    <script src="js/config.js?v=20261007g"></script>
-    <script src="js/serial_reader.js?v=20261007g"></script>
-    <script src="js/polar_plot.js?v=20261007g"></script>
-    <script src="js/main.js?v=20261007g"></script>
+    <script src="js/config.js?v=20261007h"></script>
+    <script src="js/serial_reader.js?v=20261007h"></script>
+    <script src="js/polar_plot.js?v=20261007h"></script>
+    <script src="js/main.js?v=20261007h"></script>
 </body>
 </html>
