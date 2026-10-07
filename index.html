@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=ZCOOL+KuaiLe&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=20261007sketch">
+    <link rel="stylesheet" href="css/style.css?v=20261007puppet">
 </head>
 <body>
     <!-- ============ 阶段 1: 设备登记 ============ -->
@@ -115,12 +115,15 @@
     <div id="screen-t-device" class="screen">
         <div class="t-device-container">
             <div id="t-status-display" class="t-status-display red">
-                <div class="t-device-header">
-                    <span class="t-device-icon" id="t-device-icon">🔴</span>
-                    <span class="t-device-name" id="t-device-name"></span>
+                <!-- 仅为动画布局新增的包裹层：被指向时整体上移，给纸片人让出屏幕中央 -->
+                <div class="t-status-stack">
+                    <div class="t-device-header">
+                        <span class="t-device-icon" id="t-device-icon">🔴</span>
+                        <span class="t-device-name" id="t-device-name"></span>
+                    </div>
+                    <div class="t-status-text" id="t-status-text">等待指向...</div>
+                    <div class="t-status-badge" id="t-status-badge">未被指向</div>
                 </div>
-                <div class="t-status-text" id="t-status-text">等待指向...</div>
-                <div class="t-status-badge" id="t-status-badge">未被指向</div>
             </div>
             <!-- Debug info -->
             <div id="t-debug-info" style="position:fixed;bottom:10px;left:10px;font-size:12px;color:#888;background:rgba(255,255,255,0.9);padding:6px 10px;border-radius:6px;z-index:999;">
@@ -213,9 +216,11 @@
     <!-- PubNub SDK for cross-device messaging -->
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.27.3.js"></script>
     <!-- Our code -->
-    <script src="js/config.js?v=20261007sketch"></script>
-    <script src="js/serial_reader.js?v=20261007sketch"></script>
-    <script src="js/polar_plot.js?v=20261007sketch"></script>
-    <script src="js/main.js?v=20261007sketch"></script>
+    <script src="js/config.js?v=20261007puppet"></script>
+    <script src="js/serial_reader.js?v=20261007puppet"></script>
+    <script src="js/polar_plot.js?v=20261007puppet"></script>
+    <script src="js/main.js?v=20261007puppet"></script>
+    <!-- 纯展示层：被指向时的纸片人动画（只观察 #t-status-display 的 class，不参与判定） -->
+    <script src="js/cutout_character.js?v=20261007puppet"></script>
 </body>
 </html>
