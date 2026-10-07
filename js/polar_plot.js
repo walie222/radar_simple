@@ -1,23 +1,26 @@
 /* ============================================
-   极坐标图渲染器 (Canvas) — 半圆 -90° ~ +90°
+   极坐标图渲染器 (Canvas) — 标准半圆 -90° ~ +90°
    对齐 point_demo.py 的 MAX_DISPLAY_AZI=90 设计
 
-   视觉版本：笔记本手绘风 · 伪 3D 透视地面 · 礼物盒节点
+   视觉版本 v2：纸板剧场风 · 标准半圆（俯视、无透视）· 魔法棒 + 魔法光束
    - 公开 API 与旧版完全一致：
        create(canvasId) → { updateDevice, clearDevices, setHighlight, render,
                             canvas, ctx, w, h, cx, cy, maxR, devices, highlightIdx }
    - 数据逻辑（量程计算、±90° 过滤、距离截断）与旧版一致，仅改变绘制方式
+   - 指向判定逻辑不在本文件，本文件对 main.js 的 window.state 只读不写：
+       state.mode === 'pointing' 时，读取每台设备 lockedAzi（锁存角）与 smoothedAzi（实时角），
+       估算魔法棒当前朝向 heading = 平均(lockedAzi - smoothedAzi)，光束随之旋转。
    ============================================ */
 
 var PolarPlot = (function() {
 
-    /* ---------- 手绘风格配色 ---------- */
-    var INK        = '#2d2a32';   // 墨水描边
-    var INK_SOFT   = '#5b5866';
-    var PENCIL     = '#9aa0ab';   // 铅笔辅助线
-    var PAPER      = '#fffdf6';   // 纸面
-    var PAPER_EDGE = '#efe6cf';   // 纸板侧面
-    var GRID       = 'rgba(96, 150, 204, 0.22)'; // 方格纸蓝线
+    /* ---------- 纸板剧场配色（与 T 设备纸板人偶一致）---------- */
+    var INK        = '#4a3b30';   // 棕色马克笔描边
+    var INK_SOFT   = '#6e5a48';
+    var PENCIL     = 'rgba(110, 90, 72, 0.55)';  // 铅笔辅助线
+    var PAPER      = '#f6ecd6';   // 地面：奶油色卡纸
+    var BOARD      = '#c9a676';   // 牛皮纸板
+    var BOARD_DARK = '#8b6844';   // 纸板厚度
     var HILITE     = '#ffe066';   // 荧光笔黄
     var RIBBON     = '#fff4c9';   // 丝带
     var FONT_HAND  = '"Patrick Hand", "Kalam", "Comic Sans MS", "Microsoft YaHei", "PingFang SC", sans-serif';
@@ -55,6 +58,30 @@ var PolarPlot = (function() {
     }
     function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
 
+    function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    /* ---------- 牛皮纸板纹理（程序生成一次，之后作为 pattern 复用）---------- */
+    var _kraftTile = null;
+    function kraftTile() {
+        if (_kraftTile) return _kraftTile;
+        var S = 192, cv = document.createElement('canvas');
+        cv.width = cv.height = S;
+        var g = cv.getContext('2d');
+        g.fillStyle = '#dcc49c';
+        g.fillRect(0, 0, S, S);
+        // 颗粒（深 / 浅）
+        for (var i = 0; i < 900; i++) {
+            var x = hash(i * 3.11 + 0.5) * S, y = hash(i * 7.77 + 1.5) * S;
+            var light = hash(i * 1.37) > 0.62;
+            g.fillStyle = light ? 'rgba(250, 238, 212, 0.8)' : 'rgba(110, 78, 46, 0.32)';
+            var r = 0.5 + hash(i * 9.1) * 0.9;
+            g.fillRect(x, y, r, r);
+        }
+        _kraftTile = cv;
+        return cv;
+    }
+
     function create(canvasId) {
         var canvas = document.getElementById(canvasId);
         if (!canvas) return null;
@@ -66,27 +93,19 @@ var PolarPlot = (function() {
         canvas.width = W * DPR;
         canvas.height = H * DPR;
 
-        /* ---- 伪 3D 透视参数 ----
+        /* ---- 标准半圆（俯视，无透视）----
            地面坐标：X 横向（右为正），Z 向前（0° 方向），单位 = 最大量程半径
-           相机位于原点后上方，俯视地面 */
-        var CAM_D   = 1.55;           // 相机到原点的水平距离
-        var CAM_H   = 2.7;            // 相机高度
-        var FOCAL   = 312 * CAM_D;    // 使近端半宽 ≈ 312px
-        var ORIGIN_Y = 448;           // 原点（雷达）在屏幕上的 Y
-        var HORIZON_Y = ORIGIN_Y - FOCAL * CAM_H / CAM_D;
-        var SLAB_T  = 18;             // 纸板厚度（px）
+           屏幕：原点在底边中央，0° 朝正上方，半径 RADIUS 像素 */
+        var RADIUS   = 312;
+        var ORIGIN_Y = 432;
+        var SLAB_T   = 8;              // 纸板厚度（向右下错开的深色层）
 
         var cx = W / 2;
         var cy = ORIGIN_Y;
-        var maxR = 300;
+        var maxR = RADIUS;
 
         function project(X, Z) {
-            var k = 1 / (Z + CAM_D);
-            return {
-                x: cx + FOCAL * X * k,
-                y: HORIZON_Y + FOCAL * CAM_H * k,
-                s: k * CAM_D            // 相对近端的缩放系数 (近端=1)
-            };
+            return { x: cx + RADIUS * X, y: cy - RADIUS * Z, s: 1 };
         }
         function projPolar(rNorm, aziDeg) {
             var a = aziDeg * Math.PI / 180;
@@ -110,6 +129,11 @@ var PolarPlot = (function() {
         var anim = {
             open: [0, 0, 0],          // 礼物盒开启进度 0..1
             openedAt: [0, 0, 0],      // 打开时间戳（用于粒子爆发）
+            beamT: 0,                 // 0 = 定位模式（连线），1 = 指向模式（魔法光束）
+            hitT: 0,                  // 0 = 搜索光束，1 = 命中光束
+            heading: 0,               // 魔法棒显示朝向（度，已平滑）
+            hitAt: 0,                 // 最近一次命中的时间戳
+            lastHit: -1,
             raf: null,
             last: 0,
         };
@@ -133,12 +157,42 @@ var PolarPlot = (function() {
         };
 
         self.render = function() {
+            // 动画循环运行中时由下一帧统一绘制，避免 20Hz 数据 + 60fps 动画重复绘制
+            if (anim.raf) return;
             _draw(ctx);
             ensureLoop();
         };
 
+        /* ---- 只读：当前模式 & 魔法棒朝向估算 ---- */
+        function readMode() {
+            var st = window.state;
+            return (st && st.mode === 'pointing') ? 'pointing' : 'localization';
+        }
+        // 指向模式下：设备坐标锁定在 lockedAzi，实时角 smoothedAzi 随 P 转动而变化。
+        // P 向右转 θ，设备的实时角减少 θ → θ ≈ lockedAzi - smoothedAzi。多台设备取平均。
+        function readHeading() {
+            var st = window.state;
+            if (!st || !st.devices || st.mode !== 'pointing') return null;
+            var k = (window.CONFIG && CONFIG.DATA && CONFIG.DATA.aziToDeg) || 100;
+            var sum = 0, n = 0;
+            for (var i = 0; i < st.devices.length; i++) {
+                var d = st.devices[i];
+                if (!d || d.lockedAzi == null || d.smoothedAzi == null) continue;
+                sum += (d.lockedAzi - d.smoothedAzi) / k;
+                n++;
+            }
+            if (!n) return null;
+            return Math.max(-90, Math.min(90, sum / n));
+        }
+        function hitIndex() {
+            var i = self.highlightIdx;
+            return (readMode() === 'pointing' && i >= 0 && self.devices[i]) ? i : -1;
+        }
+
         /* ---- 动画循环：仅在有动画时运行 ---- */
         function needsAnim() {
+            if (readMode() === 'pointing') return true;            // 光束持续流动
+            if (anim.beamT > 0.001) return true;                    // 模式切换过渡
             if (self.highlightIdx >= 0 && self.devices[self.highlightIdx]) return true;
             for (var i = 0; i < 3; i++) if (anim.open[i] > 0.001) return true;
             return false;
@@ -158,8 +212,28 @@ var PolarPlot = (function() {
                 if (anim.open[i] < target) anim.open[i] = Math.min(target, anim.open[i] + dt * speed);
                 else if (anim.open[i] > target) anim.open[i] = Math.max(target, anim.open[i] - dt * speed);
             }
+            // 模式过渡：连线 ↔ 光束（约 0.6s）
+            var beamTarget = readMode() === 'pointing' ? 1 : 0;
+            anim.beamT = beamTarget ? Math.min(1, anim.beamT + dt / 0.6) : Math.max(0, anim.beamT - dt / 0.4);
+            // 命中过渡（约 0.35s 锁定，0.5s 松开）
+            var hi = hitIndex();
+            if (hi >= 0 && hi !== anim.lastHit) anim.hitAt = now;
+            anim.lastHit = hi;
+            anim.hitT = hi >= 0 ? Math.min(1, anim.hitT + dt / 0.35) : Math.max(0, anim.hitT - dt / 0.5);
+            // 朝向平滑：临界阻尼式跟随，20Hz 数据也能 60fps 平滑转动
+            var h = readHeading();
+            var targetHeading = h == null ? (beamTarget ? anim.heading : 0) : h;
+            anim.heading += (targetHeading - anim.heading) * (1 - Math.exp(-dt * 9));
+
             _draw(ctx);
             if (needsAnim()) anim.raf = requestAnimationFrame(tick);
+        }
+
+        // 模式按钮切换时（main.js 会改 #mode-badge 的 class）立即启动过渡动画
+        var badge = document.getElementById('mode-badge');
+        if (badge && window.MutationObserver) {
+            new MutationObserver(function () { ensureLoop(); if (!anim.raf) _draw(ctx); })
+                .observe(badge, { attributes: true, attributeFilter: ['class'] });
         }
 
         /* ---- 绘制常量（与旧版一致）---- */
@@ -524,288 +598,491 @@ var PolarPlot = (function() {
         }
 
         /* =========================================================
-           主绘制
+           静态层（背景纸板 + 半圆地面 + 刻度 + 标注）
+           只在量程变化 / 字体加载完成时重画，平时直接贴图 → 每帧开销很小
            ========================================================= */
-        function _draw(c) {
-            var now = performance.now();
-            var MAX_DIS = computeScale();
+        var staticLayer = document.createElement('canvas');
+        staticLayer.width = W * DPR;
+        staticLayer.height = H * DPR;
+        var staticKey = '';
 
-            // Build ring labels dynamically
-            var RING_STEPS = [];
-            for (var r = SCALE_STEP; r <= MAX_DIS; r += SCALE_STEP) {
-                RING_STEPS.push(r);
-            }
+        function semicirclePath(c, rPx, dx, dy) {
+            c.beginPath();
+            c.moveTo(cx - rPx + (dx || 0), cy + (dy || 0));
+            c.arc(cx + (dx || 0), cy + (dy || 0), rPx, Math.PI, 0, false);
+            c.closePath();
+        }
+        // 半圆外缘的手绘点列（带抖动）
+        function arcPoints(rn, step) {
+            var pts = [];
+            for (var a = -MAX_DISPLAY_AZI; a <= MAX_DISPLAY_AZI + 0.001; a += step) pts.push(projPolar(rn, a));
+            return pts;
+        }
 
+        function drawStatic(c, MAX_DIS, RING_STEPS) {
             c.setTransform(DPR, 0, 0, DPR, 0, 0);
+            c.clearRect(0, 0, W, H);
             c.lineCap = 'round';
             c.lineJoin = 'round';
 
-            // ===== 背景：笔记本方格纸 =====
-            c.fillStyle = '#fbf8ef';
+            // ===== 背景：瓦楞纸板（横向瓦楞 + 颗粒）=====
+            c.fillStyle = c.createPattern(kraftTile(), 'repeat');
             c.fillRect(0, 0, W, H);
-            c.strokeStyle = 'rgba(96,150,204,0.13)';
-            c.lineWidth = 1;
-            for (var gx = 0; gx <= W; gx += 20) { c.beginPath(); c.moveTo(gx + 0.5, 0); c.lineTo(gx + 0.5, H); c.stroke(); }
-            for (var gy = 0; gy <= H; gy += 20) { c.beginPath(); c.moveTo(0, gy + 0.5); c.lineTo(W, gy + 0.5); c.stroke(); }
-            // 左侧红色页边线
-            c.strokeStyle = 'rgba(230,90,90,0.35)';
-            c.lineWidth = 1.5;
-            c.beginPath(); c.moveTo(28.5, 0); c.lineTo(28.5, H); c.stroke();
+            c.fillStyle = 'rgba(255, 240, 210, 0.10)';
+            for (var sy = 0; sy < H; sy += 10) c.fillRect(0, sy, W, 4);
+            c.fillStyle = 'rgba(80, 55, 30, 0.06)';
+            for (var sy2 = 6; sy2 < H; sy2 += 10) c.fillRect(0, sy2, W, 2);
 
-            // ===== 扇形地面多边形（透视）=====
-            var fan = [];
-            for (var a = -MAX_DISPLAY_AZI; a <= MAX_DISPLAY_AZI; a += 3) fan.push(projPolar(1, a));
-            var o = project(0, 0);
-
-            // ---- 纸板厚度（底层 + 前侧面）----
-            c.beginPath();
-            c.moveTo(o.x, o.y + SLAB_T);
-            for (var fi = 0; fi < fan.length; fi++) c.lineTo(fan[fi].x, fan[fi].y + SLAB_T);
-            c.closePath();
-            c.fillStyle = 'rgba(45,42,50,0.12)';
-            c.save(); c.translate(6, 6); c.fill(); c.restore();     // 投影
-            c.fillStyle = PAPER_EDGE;
+            // ===== 半圆地面：奶油卡纸剪片（纸板厚度 + 投影 + 马克笔描边）=====
+            semicirclePath(c, RADIUS + 6, 7, 9);
+            c.fillStyle = 'rgba(60, 38, 20, 0.28)';
             c.fill();
-            c.strokeStyle = INK;
-            c.lineWidth = 2;
-            var under = [];
-            for (var ui = 0; ui < fan.length; ui++) under.push({ x: fan[ui].x, y: fan[ui].y + SLAB_T });
-            sketchPoly(c, under, 41, { amp: 0.5 });
-
-            var L = project(-1, 0), R = project(1, 0);
-            // 前侧面排线
-            c.save();
-            c.beginPath();
-            c.rect(L.x, L.y, R.x - L.x, SLAB_T);
-            c.clip();
-            c.strokeStyle = 'rgba(45,42,50,0.12)';
-            c.lineWidth = 1;
-            for (var hx = L.x - SLAB_T; hx < R.x; hx += 7) {
-                c.beginPath(); c.moveTo(hx, L.y + SLAB_T); c.lineTo(hx + SLAB_T, L.y); c.stroke();
-            }
-            c.restore();
-            c.strokeStyle = INK;
-            c.lineWidth = 2;
-            sketchLine(c, L.x, L.y + SLAB_T, R.x, R.y + SLAB_T, 43, { amp: 0.6 });
-            sketchLine(c, L.x, L.y, L.x, L.y + SLAB_T, 44, { amp: 0.4 });
-            sketchLine(c, R.x, R.y, R.x, R.y + SLAB_T, 45, { amp: 0.4 });
-
-            // ---- 地面顶层（纸面）----
-            c.beginPath();
-            c.moveTo(o.x, o.y);
-            for (var fj = 0; fj < fan.length; fj++) c.lineTo(fan[fj].x, fan[fj].y);
-            c.closePath();
+            semicirclePath(c, RADIUS + 6, 4, SLAB_T);
+            c.fillStyle = BOARD_DARK;
+            c.fill();
+            semicirclePath(c, RADIUS + 6);
             c.fillStyle = PAPER;
             c.fill();
 
-            // 透视方格线（裁剪在扇形内）
+            // 地面淡淡的铅笔方格（裁剪在半圆内）
             c.save();
+            semicirclePath(c, RADIUS + 6);
             c.clip();
-            c.strokeStyle = GRID;
+            c.strokeStyle = 'rgba(110, 90, 72, 0.10)';
             c.lineWidth = 1;
-            var G = 0.1;
-            for (var gxn = -1; gxn <= 1.0001; gxn += G) {
-                var p1 = project(gxn, 0), p2 = project(gxn, 1.05);
-                c.beginPath(); c.moveTo(p1.x, p1.y); c.lineTo(p2.x, p2.y); c.stroke();
-            }
-            for (var gzn = 0; gzn <= 1.0001; gzn += G) {
-                var q1 = project(-1.05, gzn), q2 = project(1.05, gzn);
-                c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.stroke();
-            }
-
-            // 荧光笔：指向判定区（±pointingAziLimit）
-            var limDeg = (CONFIG && CONFIG.DATA) ? CONFIG.DATA.pointingAziLimit / CONFIG.DATA.aziToDeg : 10;
-            limDeg = Math.max(0, Math.min(MAX_DISPLAY_AZI, limDeg));
-            if (limDeg > 0) {
-                c.beginPath();
-                c.moveTo(o.x, o.y);
-                for (var la = -limDeg; la <= limDeg + 0.001; la += Math.max(0.5, limDeg / 10)) {
-                    var lp = projPolar(1.02, la);
-                    c.lineTo(lp.x, lp.y);
-                }
-                c.closePath();
-                c.fillStyle = 'rgba(255, 224, 102, 0.38)';
-                c.fill();
-            }
+            for (var gx = cx % 24; gx <= W; gx += 24) { c.beginPath(); c.moveTo(gx + 0.5, 0); c.lineTo(gx + 0.5, H); c.stroke(); }
+            for (var gy = cy % 24; gy <= H; gy += 24) { c.beginPath(); c.moveTo(0, gy + 0.5); c.lineTo(W, gy + 0.5); c.stroke(); }
             c.restore();
 
-            // 地面外边框（手绘墨线）
+            // 外缘 + 直径（手绘马克笔）
             c.strokeStyle = INK;
-            c.lineWidth = 2.4;
-            sketchPoly(c, fan, 51, { amp: 0.7 });
+            c.lineWidth = 3;
+            var rim = arcPoints((RADIUS + 6) / RADIUS, 3);
+            sketchPoly(c, rim, 51, { amp: 0.8 });
+            var L = project(-(RADIUS + 6) / RADIUS, 0), R = project((RADIUS + 6) / RADIUS, 0);
             sketchLine(c, L.x, L.y, R.x, R.y, 52, { amp: 0.6 });
 
-            // ===== 同心半圆弧（距离刻度环）=====
+            // ===== 同心半圆（距离刻度环）=====
             for (var ri = 0; ri < RING_STEPS.length; ri++) {
-                var rLabel = RING_STEPS[ri];
-                var rn = rLabel / MAX_DIS;
-                if (rn >= 0.999) continue;          // 最外圈即边框
-                var ring = [];
-                for (var aa = -MAX_DISPLAY_AZI; aa <= MAX_DISPLAY_AZI; aa += 4) ring.push(projPolar(rn, aa));
-                c.strokeStyle = PENCIL;
-                c.lineWidth = 1.3;
-                c.setLineDash([6, 5]);
-                sketchPoly(c, ring, 60 + ri * 11, { amp: 0.5, passes: 1 });
+                var rn = RING_STEPS[ri] / MAX_DIS;
+                if (rn > 1.001) continue;
+                c.strokeStyle = rn >= 0.999 ? INK_SOFT : PENCIL;
+                c.lineWidth = rn >= 0.999 ? 1.8 : 1.3;
+                c.setLineDash(rn >= 0.999 ? [] : [6, 6]);
+                sketchPoly(c, arcPoints(rn, 4), 60 + ri * 11, { amp: 0.5, passes: 1 });
                 c.setLineDash([]);
             }
 
             // ===== 径向线（每 30° 一条）=====
+            var o = project(0, 0);
             for (var ra = -MAX_DISPLAY_AZI + 30; ra <= MAX_DISPLAY_AZI - 30; ra += 30) {
                 var e = projPolar(1, ra);
-                if (ra === 0) {
-                    c.strokeStyle = INK_SOFT;
-                    c.lineWidth = 1.8;
-                    c.setLineDash([8, 6]);
-                } else {
-                    c.strokeStyle = 'rgba(154,160,171,0.75)';
-                    c.lineWidth = 1.1;
-                    c.setLineDash([4, 5]);
-                }
+                c.strokeStyle = ra === 0 ? INK_SOFT : PENCIL;
+                c.lineWidth = ra === 0 ? 1.6 : 1.1;
+                c.setLineDash(ra === 0 ? [8, 6] : [4, 6]);
                 sketchLine(c, o.x, o.y, e.x, e.y, 80 + ra, { amp: 0.6, passes: 1 });
                 c.setLineDash([]);
             }
 
-            // ===== 距离刻度：写在纸板前侧面（mm→cm 取整，不写单位）=====
-            c.font = 'bold 14px ' + FONT_HAND;
+            // ===== 距离刻度：写在直径下方（mm→cm 取整）=====
+            c.font = 'bold 15px ' + FONT_HAND;
             c.textBaseline = 'middle';
-            c.textAlign = 'center';
+            // 刻度太密时隔几个环才写一个数字（相邻数字至少间隔 ~38px）
+            var ringPx = RADIUS * SCALE_STEP / MAX_DIS;
+            var labelEvery = Math.max(1, Math.ceil(38 / ringPx));
             for (var ti = 0; ti < RING_STEPS.length; ti++) {
                 var tn = RING_STEPS[ti] / MAX_DIS;
-                var tp = project(tn, 0);
-                c.strokeStyle = INK;
-                c.lineWidth = 1.5;
-                sketchLine(c, tp.x, tp.y, tp.x, tp.y + 5, 90 + ti, { passes: 1, amp: 0.3 });
-                c.fillStyle = INK;
-                c.textAlign = tn >= 0.999 ? 'right' : 'center';
-                c.fillText(Math.round(RING_STEPS[ti] / 10), tn >= 0.999 ? tp.x - 6 : tp.x, tp.y + SLAB_T / 2 + 2);
+                if (tn > 1.001) continue;
+                var isOuter = ti === RING_STEPS.length - 1;
+                var showNum = isOuter || (((ti + 1) % labelEvery === 0) && (RING_STEPS.length - 1 - ti) >= labelEvery);
+                [-1, 1].forEach(function (side) {
+                    var tp = project(side * tn, 0);
+                    c.strokeStyle = INK;
+                    c.lineWidth = 1.5;
+                    sketchLine(c, tp.x, tp.y, tp.x, tp.y + (showNum ? 7 : 4), 90 + ti + side, { passes: 1, amp: 0.3 });
+                    if (side > 0 && showNum) {
+                        c.fillStyle = INK;
+                        c.textAlign = 'center';
+                        c.fillText(Math.round(RING_STEPS[ti] / 10), tp.x, tp.y + SLAB_T + 14);
+                    }
+                });
             }
-            // ===== 单位标识 "cm" =====
             c.fillStyle = INK_SOFT;
-            c.font = 'bold 14px ' + FONT_HAND;
             c.textAlign = 'left';
-            c.fillText('cm', R.x + 8, R.y + SLAB_T / 2 + 2);
+            c.fillText('cm', R.x + 8, R.y + SLAB_T + 14);
 
-            // ===== 角度标注 =====
+            // ===== 角度标注（纸片小标签）=====
             for (var ka = -MAX_DISPLAY_AZI; ka <= MAX_DISPLAY_AZI; ka += 30) {
                 var label = CARDINAL_LABELS[String(ka)] || (ka + '°');
-                var lp2;
-                if (Math.abs(ka) === 90) {
-                    var edge = project(ka > 0 ? 1 : -1, 0);
-                    lp2 = { x: edge.x + (ka > 0 ? 26 : -26), y: edge.y - 12 };
-                } else {
-                    lp2 = projPolar(1.13, ka);
-                }
-                c.fillStyle = ka === 0 ? INK : '#3b3845';
+                var lp2 = projPolar(1.11, ka);
+                if (Math.abs(ka) === 90) lp2 = { x: lp2.x, y: cy - 14 };
+                c.fillStyle = ka === 0 ? INK : INK_SOFT;
                 c.font = 'bold 18px ' + FONT_HAND;
                 c.textAlign = 'center';
                 c.textBaseline = 'middle';
                 c.fillText(label, lp2.x, lp2.y);
             }
+        }
 
-            // ===== 设备节点（礼物盒）— 远处先画 =====
+        function ensureStatic(MAX_DIS, RING_STEPS) {
+            var key = MAX_DIS + '|' + (self._fontsReady ? 1 : 0);
+            if (key === staticKey) return;
+            drawStatic(staticLayer.getContext('2d'), MAX_DIS, RING_STEPS);
+            staticKey = key;
+        }
+
+        /* =========================================================
+           主绘制
+           ========================================================= */
+        function _draw(c) {
+            var now = performance.now();
+            var MAX_DIS = computeScale();
+            var RING_STEPS = [];
+            for (var r = SCALE_STEP; r <= MAX_DIS; r += SCALE_STEP) RING_STEPS.push(r);
+
+            ensureStatic(MAX_DIS, RING_STEPS);
+            c.setTransform(1, 0, 0, 1, 0, 0);
+            c.drawImage(staticLayer, 0, 0);
+            c.setTransform(DPR, 0, 0, DPR, 0, 0);
+            c.lineCap = 'round';
+            c.lineJoin = 'round';
+
+            var o = project(0, 0);
+            var beamT = easeInOut(anim.beamT);
+            var hitT = easeInOut(anim.hitT);
+            var limDeg = (window.CONFIG && CONFIG.DATA) ? CONFIG.DATA.pointingAziLimit / CONFIG.DATA.aziToDeg : 10;
+            limDeg = Math.max(0.5, Math.min(MAX_DISPLAY_AZI, limDeg));
+
+            // ===== 定位模式：荧光笔指向判定区（±limit，固定朝 0°）=====
+            if (beamT < 0.999) drawZone(c, o, 0, limDeg, 1 - beamT);
+
+            // ===== 设备节点位置 =====
             var labels = CONFIG.DEVICE_LABELS;
             var items = [];
             for (var i = 0; i < 3; i++) {
                 var dev = self.devices[i];
                 if (!dev) continue;
-
-                // 超出 ±90° 范围的点不显示
-                if (Math.abs(dev.azi) > MAX_DISPLAY_AZI) continue;
-
-                // 距离映射
-                var clampedDis = Math.min(dev.dis, MAX_DIS);
-                var rr = clampedDis / MAX_DIS;
+                if (Math.abs(dev.azi) > MAX_DISPLAY_AZI) continue;   // 超出 ±90° 不显示
+                var rr = Math.min(dev.dis, MAX_DIS) / MAX_DIS;
                 var arad = dev.azi * Math.PI / 180;
                 var X = rr * Math.sin(arad), Z = rr * Math.cos(arad);
                 items.push({ i: i, X: X, Z: Z, p: project(X, Z) });
             }
             items.sort(function(a, b) { return b.Z - a.Z; });
 
-            // 先画所有连接虚线（在盒子下方）
-            for (var li = 0; li < items.length; li++) {
-                var it = items[li];
-                var hl = it.i === self.highlightIdx;
-                if (hl) {
-                    // 荧光笔指向光束
-                    c.strokeStyle = 'rgba(255, 212, 59, 0.55)';
-                    c.lineWidth = 12;
-                    c.lineCap = 'round';
-                    sketchLine(c, o.x, o.y, it.p.x, it.p.y, 300 + it.i, { passes: 1, amp: 0.8 });
+            // ===== 连接虚线（定位模式）→ 指向模式下淡出、收缩回魔法棒 =====
+            var lineK = 1 - beamT;
+            if (lineK > 0.001) {
+                for (var li = 0; li < items.length; li++) {
+                    var it = items[li];
+                    var hl = it.i === self.highlightIdx;
+                    var ex = lerp(o.x, it.p.x, lineK), ey = lerp(o.y, it.p.y, lineK);
+                    c.globalAlpha = lineK;
+                    if (hl) {
+                        c.strokeStyle = 'rgba(255, 212, 59, 0.55)';
+                        c.lineWidth = 12;
+                        sketchLine(c, o.x, o.y, ex, ey, 300 + it.i, { passes: 1, amp: 0.8 });
+                    }
+                    c.strokeStyle = alpha(CONFIG.DEVICE_COLORS[it.i], hl ? 0.95 : 0.7);
+                    c.lineWidth = hl ? 2.4 : 1.8;
+                    c.setLineDash([7, 5]);
+                    sketchLine(c, o.x, o.y, ex, ey, 200 + it.i, { passes: 1, amp: 0.6 });
+                    c.setLineDash([]);
+                    c.globalAlpha = 1;
                 }
-                c.strokeStyle = alpha(CONFIG.DEVICE_COLORS[it.i], hl ? 0.95 : 0.6);
-                c.lineWidth = hl ? 2.2 : 1.6;
-                c.setLineDash([7, 5]);
-                sketchLine(c, o.x, o.y, it.p.x, it.p.y, 200 + it.i, { passes: 1, amp: 0.6 });
-                c.setLineDash([]);
-                // 地面落点小十字
+            }
+            // 地面落点小十字
+            for (var xi = 0; xi < items.length; xi++) {
                 c.strokeStyle = INK;
                 c.lineWidth = 1.4;
-                sketchLine(c, it.p.x - 5, it.p.y, it.p.x + 5, it.p.y, 220 + it.i, { passes: 1, amp: 0.3 });
+                sketchLine(c, items[xi].p.x - 5, items[xi].p.y, items[xi].p.x + 5, items[xi].p.y, 220 + items[xi].i, { passes: 1, amp: 0.3 });
             }
 
-            // ===== 原点：手绘雷达 =====
-            drawRadar(c, o.x, o.y);
+            // ===== 指向模式：魔法光束 =====
+            var heading = lerp(0, anim.heading, beamT);
+            var wandAng = heading;
+            var hitItem = null;
+            if (anim.lastHit >= 0) {
+                for (var hi2 = 0; hi2 < items.length; hi2++) if (items[hi2].i === anim.lastHit) hitItem = items[hi2];
+            }
+            if (hitItem && hitT > 0) {
+                // 命中时光束"锁定"到目标位置
+                var tgtAng = Math.atan2(hitItem.p.x - o.x, o.y - hitItem.p.y) * 180 / Math.PI;
+                wandAng = lerp(heading, tgtAng, hitT);
+            }
+            var tip = wandTip(o, wandAng);
+            if (beamT > 0.001) {
+                drawSearchBeam(c, tip, wandAng, limDeg, beamT * (1 - hitT), now);
+                if (hitItem && hitT > 0.001) drawHitBeam(c, tip, hitItem, CONFIG.DEVICE_COLORS[hitItem.i], beamT * hitT, now);
+            }
 
+            // ===== 原点：魔法棒 =====
+            drawWand(c, o, wandAng, beamT, hitT, now);
+
+            // ===== 礼物盒（远处先画）+ 标签 =====
             var tags = [];
             for (var bi = 0; bi < items.length; bi++) {
                 var b = items[bi];
-                var openT = anim.open[b.i];
-                var anchor = drawGiftBox(c, b.i, b.p.x, b.p.y, Math.max(0.7, b.p.s), CONFIG.DEVICE_COLORS[b.i], openT, now);
+                var anchor = drawGiftBox(c, b.i, b.p.x, b.p.y, 0.92, CONFIG.DEVICE_COLORS[b.i], anim.open[b.i], now);
                 tags.push({ i: b.i, x: anchor.tagX, y: anchor.tagY });
             }
-
-            // 标签最后画，保证不被遮挡
             for (var tg = 0; tg < tags.length; tg++) {
                 var t = tags[tg];
-                var isHL = t.i === self.highlightIdx;
                 drawTag(c, labels[t.i], t.x, Math.max(16, t.y), 700 + t.i, {
-                    fill: isHL ? HILITE : PAPER,
+                    fill: t.i === self.highlightIdx ? HILITE : RIBBON,
                     font: 'bold 16px ' + FONT_LABEL,
                 });
             }
         }
 
-        // 手绘雷达（原点）
-        function drawRadar(c, x, y) {
-            // 底座
+        /* =========================================================
+           指向判定区（荧光笔斜线排线的扇形）
+           ========================================================= */
+        function drawZone(c, o, centerDeg, halfDeg, a) {
+            if (a <= 0.001) return;
+            c.save();
+            c.globalAlpha = a;
             c.beginPath();
-            c.ellipse(x, y + 2, 20, 8, 0, 0, Math.PI * 2);
-            c.fillStyle = 'rgba(45,42,50,0.15)';
-            c.fill();
-            sketchShape(c, [
-                { x: x - 11, y: y + 2 }, { x: x + 11, y: y + 2 },
-                { x: x + 6, y: y - 10 }, { x: x - 6, y: y - 10 }
-            ], '#d9d4c7', 31, 1.8);
-            // 天线盘（朝向 0°，即屏幕上方）
-            c.beginPath();
-            c.ellipse(x, y - 16, 16, 7, 0, Math.PI, 0, false);
+            c.moveTo(o.x, o.y);
+            for (var la = centerDeg - halfDeg; la <= centerDeg + halfDeg + 0.001; la += Math.max(0.5, halfDeg / 10)) {
+                var lp = projPolar(1, la);
+                c.lineTo(lp.x, lp.y);
+            }
             c.closePath();
-            c.fillStyle = '#ffffff';
+            c.fillStyle = 'rgba(255, 224, 102, 0.30)';
+            c.fill();
+            c.clip();
+            c.strokeStyle = 'rgba(232, 180, 20, 0.45)';
+            c.lineWidth = 3;
+            for (var k = -RADIUS; k < RADIUS * 2; k += 9) {
+                c.beginPath(); c.moveTo(o.x - RADIUS + k, o.y); c.lineTo(o.x + k, o.y - RADIUS); c.stroke();
+            }
+            c.restore();
+        }
+
+        /* =========================================================
+           魔法棒
+           ========================================================= */
+        var WAND_LEN = 54;
+        function dirOf(deg) { var a = deg * Math.PI / 180; return { x: Math.sin(a), y: -Math.cos(a) }; }
+        function wandTip(o, deg) { var d = dirOf(deg); return { x: o.x + d.x * WAND_LEN, y: o.y - 4 + d.y * WAND_LEN }; }
+
+        function drawWand(c, o, deg, beamT, hitT, now) {
+            var d = dirOf(deg);
+            var bx = o.x, by = o.y - 4;
+            var tip = wandTip(o, deg);
+
+            // 纸板底座（圆形小台子）
+            c.beginPath();
+            c.ellipse(o.x + 4, o.y + 5, 22, 9, 0, 0, Math.PI * 2);
+            c.fillStyle = 'rgba(60, 38, 20, 0.25)';
+            c.fill();
+            c.beginPath();
+            c.ellipse(o.x, o.y + 1, 19, 8, 0, 0, Math.PI * 2);
+            c.fillStyle = BOARD;
             c.fill();
             c.strokeStyle = INK;
             c.lineWidth = 2;
             c.stroke();
+
+            // 棒身：马克笔描边 + 紫色棒身 + 白色握柄环
+            c.lineCap = 'round';
+            c.strokeStyle = INK;
+            c.lineWidth = 11;
+            c.beginPath(); c.moveTo(bx, by); c.lineTo(tip.x - d.x * 6, tip.y - d.y * 6); c.stroke();
+            c.strokeStyle = '#6b4fa0';
+            c.lineWidth = 6;
+            c.beginPath(); c.moveTo(bx, by); c.lineTo(tip.x - d.x * 6, tip.y - d.y * 6); c.stroke();
+            // 排线高光
+            c.strokeStyle = 'rgba(255,255,255,0.35)';
+            c.lineWidth = 2;
+            c.beginPath(); c.moveTo(bx - d.y * 1.5, by + d.x * 1.5); c.lineTo(tip.x - d.x * 10 - d.y * 1.5, tip.y - d.y * 10 + d.x * 1.5); c.stroke();
+            // 握柄环
+            c.strokeStyle = '#fff4c9';
+            c.lineWidth = 6;
+            c.beginPath(); c.moveTo(bx + d.x * 10, by + d.y * 10); c.lineTo(bx + d.x * 16, by + d.y * 16); c.stroke();
+            // 关节双脚钉
             c.beginPath();
-            c.moveTo(x, y - 10); c.lineTo(x, y - 18);
-            c.stroke();
-            c.beginPath();
-            c.arc(x, y - 22, 3, 0, Math.PI * 2);
-            c.fillStyle = '#ff6b6b';
+            c.arc(bx, by, 5, 0, Math.PI * 2);
+            c.fillStyle = '#d4a845';
             c.fill();
+            c.lineWidth = 2;
+            c.strokeStyle = INK;
             c.stroke();
-            // 信号波纹
-            c.strokeStyle = INK_SOFT;
-            c.lineWidth = 1.6;
-            for (var k = 1; k <= 2; k++) {
-                c.beginPath();
-                c.arc(x, y - 22, 6 + k * 5, -Math.PI * 0.75, -Math.PI * 0.25);
-                c.stroke();
-            }
+
+            // 顶端星星（指向模式更亮，命中时放大闪烁）
+            var glow = 0.25 + 0.75 * beamT;
+            var pulse = 1 + 0.08 * Math.sin(now / 180) * beamT + 0.25 * hitT;
+            var g = c.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, 30 * pulse);
+            g.addColorStop(0, 'rgba(255, 240, 160,' + (0.85 * glow) + ')');
+            g.addColorStop(1, 'rgba(255, 240, 160, 0)');
+            c.fillStyle = g;
+            c.beginPath(); c.arc(tip.x, tip.y, 30 * pulse, 0, Math.PI * 2); c.fill();
+            drawStar5(c, tip.x, tip.y, 11 * pulse, '#ffd43b', deg * Math.PI / 180 + now / 1500 * beamT);
         }
 
-        // 手绘字体加载完成后重绘一次
+        function drawStar5(c, x, y, r, color, rot) {
+            c.save();
+            c.translate(x, y);
+            c.rotate(rot || 0);
+            c.beginPath();
+            for (var i = 0; i < 10; i++) {
+                var ang = -Math.PI / 2 + i * Math.PI / 5;
+                var rr = i % 2 === 0 ? r : r * 0.45;
+                c.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+            }
+            c.closePath();
+            c.fillStyle = color;
+            c.fill();
+            c.strokeStyle = INK;
+            c.lineWidth = 2;
+            c.lineJoin = 'round';
+            c.stroke();
+            c.restore();
+        }
+
+        /* =========================================================
+           搜索光束：淡紫色魔法光锥（宽度 = 指向判定范围 ±limit），星尘向外飘
+           ========================================================= */
+        function drawSearchBeam(c, tip, deg, halfDeg, a, now) {
+            if (a <= 0.001) return;
+            var len = RADIUS - WAND_LEN + 4;
+            var a0 = (deg - halfDeg) * Math.PI / 180, a1 = (deg + halfDeg) * Math.PI / 180;
+            c.save();
+            c.globalAlpha = a;
+
+            // 光锥
+            c.beginPath();
+            c.moveTo(tip.x, tip.y);
+            for (var k = 0; k <= 12; k++) {
+                var ang = a0 + (a1 - a0) * k / 12;
+                c.lineTo(tip.x + Math.sin(ang) * len, tip.y - Math.cos(ang) * len);
+            }
+            c.closePath();
+            var g = c.createRadialGradient(tip.x, tip.y, 4, tip.x, tip.y, len);
+            g.addColorStop(0, 'rgba(214, 196, 255, 0.75)');
+            g.addColorStop(0.55, 'rgba(190, 165, 245, 0.32)');
+            g.addColorStop(1, 'rgba(190, 165, 245, 0)');
+            c.fillStyle = g;
+            c.fill();
+
+            // 光锥内的马克笔排线（与人偶的排线上色呼应）
+            c.clip();
+            c.strokeStyle = 'rgba(140, 110, 220, 0.18)';
+            c.lineWidth = 2.5;
+            var shift = (now / 60) % 10;
+            for (var hx = -len; hx < len; hx += 10) {
+                c.beginPath();
+                c.moveTo(tip.x + hx + shift - len, tip.y + len);
+                c.lineTo(tip.x + hx + shift + len, tip.y - len);
+                c.stroke();
+            }
+            c.restore();
+
+            // 光束中轴（流动的虚线）
+            var d = dirOf(deg);
+            c.save();
+            c.globalAlpha = a * 0.9;
+            c.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            c.lineWidth = 3;
+            c.setLineDash([10, 12]);
+            c.lineDashOffset = -now / 25;
+            c.beginPath();
+            c.moveTo(tip.x, tip.y);
+            c.lineTo(tip.x + d.x * len * 0.92, tip.y + d.y * len * 0.92);
+            c.stroke();
+            c.setLineDash([]);
+
+            // 星尘：沿光束向外飘散，越远越淡
+            for (var p = 0; p < 12; p++) {
+                var life = 2.2;
+                var tt = ((now / 1000 + p * life / 12) % life) / life;
+                var lat = (hash(p * 4.7) - 0.5) * 2 * Math.sin(halfDeg * Math.PI / 180) * tt;
+                var dist = 14 + tt * (len - 14);
+                var px = tip.x + d.x * dist + (-d.y) * lat * dist;
+                var py = tip.y + d.y * dist + (d.x) * lat * dist;
+                c.globalAlpha = a * (1 - tt) * 0.95;
+                drawSparkle(c, px, py, 3 + 3 * (1 - tt), p % 3 ? '#ffffff' : '#e5dbff', tt * 4 + p);
+            }
+            c.restore();
+        }
+
+        /* =========================================================
+           命中光束：金色聚焦光柱直达目标，螺旋星光 + 目标处光环
+           ========================================================= */
+        function drawHitBeam(c, tip, item, color, a, now) {
+            var tx = item.p.x, ty = item.p.y - 14;      // 指向礼物盒中部
+            var dx = tx - tip.x, dy = ty - tip.y;
+            var len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+            var ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+            var grow = clamp01((now - anim.hitAt) / 260);  // 命中瞬间光束从魔法棒"射出"
+            var reach = len * easeInOut(grow);
+            var ex = tip.x + ux * reach, ey = tip.y + uy * reach;
+
+            c.save();
+            c.globalAlpha = a;
+
+            // 外层光晕（锥形：棒端窄、目标端宽）
+            var w0 = 5, w1 = 16 + 2 * Math.sin(now / 120);
+            c.beginPath();
+            c.moveTo(tip.x + nx * w0, tip.y + ny * w0);
+            c.lineTo(ex + nx * w1, ey + ny * w1);
+            c.lineTo(ex - nx * w1, ey - ny * w1);
+            c.lineTo(tip.x - nx * w0, tip.y - ny * w0);
+            c.closePath();
+            var lg = c.createLinearGradient(tip.x, tip.y, ex, ey);
+            lg.addColorStop(0, 'rgba(255, 230, 120, 0.85)');
+            lg.addColorStop(1, alpha(color, 0.55));
+            c.fillStyle = lg;
+            c.fill();
+            c.strokeStyle = 'rgba(232, 164, 0, 0.8)';
+            c.lineWidth = 1.5;
+            c.stroke();
+
+            // 内芯：白色亮线（两遍手绘）
+            c.strokeStyle = '#fffdf2';
+            c.lineWidth = 4;
+            sketchLine(c, tip.x, tip.y, ex, ey, 900 + item.i, { passes: 1, amp: 0.8 });
+            c.strokeStyle = 'rgba(255, 212, 59, 0.9)';
+            c.lineWidth = 1.6;
+            sketchLine(c, tip.x, tip.y, ex, ey, 950 + item.i, { passes: 1, amp: 1.2 });
+
+            // 螺旋星光：两条正弦丝带沿光束流动
+            for (var s = 0; s < 2; s++) {
+                for (var q = 0; q < 14; q++) {
+                    var f = ((q / 14) + now / 1400) % 1;
+                    if (f * len > reach) continue;
+                    var wv = Math.sin(f * 14 - now / 140 + s * Math.PI) * (6 + 6 * f);
+                    var px = tip.x + ux * f * len + nx * wv, py = tip.y + uy * f * len + ny * wv;
+                    c.globalAlpha = a * (0.4 + 0.6 * Math.sin(f * Math.PI));
+                    drawSparkle(c, px, py, 2.4 + 1.6 * Math.sin(f * Math.PI), s ? '#ffffff' : '#ffe066', f * 6);
+                }
+            }
+
+            // 目标处：扩散光环 + 星芒
+            if (grow >= 1) {
+                c.globalAlpha = a;
+                for (var ring = 0; ring < 2; ring++) {
+                    var rt = ((now - anim.hitAt) / 900 + ring * 0.5) % 1;
+                    c.beginPath();
+                    c.ellipse(tx, ty + 10, 12 + rt * 34, (12 + rt * 34) * 0.55, 0, 0, Math.PI * 2);
+                    c.strokeStyle = alpha(color, 0.75 * (1 - rt));
+                    c.lineWidth = 3 * (1 - rt) + 1;
+                    c.stroke();
+                }
+                for (var st = 0; st < 5; st++) {
+                    var ang = now / 700 + st * Math.PI * 2 / 5;
+                    var rad = 30 + 5 * Math.sin(now / 200 + st);
+                    c.globalAlpha = a * (0.6 + 0.4 * Math.sin(now / 150 + st * 1.3));
+                    drawSparkle(c, tx + Math.cos(ang) * rad, ty + Math.sin(ang) * rad * 0.6, 5, st % 2 ? '#ffffff' : '#ffd43b', ang);
+                }
+            }
+            c.restore();
+        }
+
+        // 手绘字体加载完成后重绘一次（静态层也要用新字体重画）
         if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(function() { _draw(ctx); });
+            document.fonts.ready.then(function() { self._fontsReady = true; _draw(ctx); });
         }
 
         self.render();

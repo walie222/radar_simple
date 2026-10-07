@@ -571,3 +571,220 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
     .rb-stage.is-arrived .rb-sparks,
     .rb-eyes { animation: none; }
 }
+
+/* ============================================
+   主控设备 (P) — 纸板剧场主题
+   与 T 设备的纸板人偶同一套视觉语言：
+   牛皮纸板 + 棕色马克笔描边 + 斜线排线上色 + 纸板厚度投影 + 双脚钉 + 红色幕布
+   只覆盖 #screen-p-device 与设置弹窗，不影响登记页与 T 设备页
+   ============================================ */
+:root {
+    --b-ink:    #4a3b30;   /* 棕色马克笔 */
+    --b-ink-soft: #6e5a48;
+    --b-board:  #d2b385;   /* 牛皮纸板 */
+    --b-board-light: #e6d2ad;
+    --b-edge:   #8b6844;   /* 纸板厚度 */
+    --b-cream:  #f6ecd6;   /* 奶油卡纸 */
+    --b-red:    #b8432f;   /* 幕布红 */
+    --b-gold:   #e0a526;
+    --b-purple: #7a5cc2;
+    /* 纸板颗粒（SVG 噪声小贴图，只光栅化一次） */
+    --b-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='1' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .24 0 0 0 0 .14 0 0 0 1.7 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    --b-shadow: 5px 7px 0 var(--b-edge), 9px 13px 16px rgba(60, 38, 20, 0.22);
+    --b-shadow-sm: 3px 4px 0 var(--b-edge);
+}
+
+/* ---- 舞台背景：浅色瓦楞纸板 + 顶部红色幕布 ---- */
+#screen-p-device.active {
+    min-height: 100vh;
+    position: relative;
+    padding-top: 54px;
+    background-color: #e3cfa9;
+    background-image:
+        var(--b-grain),
+        repeating-linear-gradient(0deg, rgba(255, 244, 220, 0.35) 0 5px, rgba(120, 85, 50, 0.07) 5px 10px);
+}
+#screen-p-device::before,
+#screen-p-device::after {
+    content: ""; position: absolute; left: 0; right: 0; pointer-events: none; z-index: 2;
+}
+/* 幕布横幅（斜线排线的红色） */
+#screen-p-device::before {
+    top: 0; height: 34px;
+    background:
+        repeating-linear-gradient(115deg, rgba(90, 20, 10, 0.28) 0 3px, transparent 3px 9px),
+        var(--b-red);
+    border-bottom: 3px solid var(--b-ink);
+}
+/* 幕布下沿的扇形波浪（带马克笔描边） */
+#screen-p-device::after {
+    top: 34px; height: 22px;
+    background:
+        radial-gradient(circle at 50% 0, var(--b-red) 0 19px, var(--b-ink) 19px 22px, transparent 22.5px) 0 0 / 52px 22px repeat-x;
+}
+
+#screen-p-device .container { position: relative; z-index: 1; }
+
+/* ---- 标题：钉在幕布下的纸板招牌 ---- */
+#screen-p-device h2 {
+    display: inline-block; position: relative;
+    margin: 6px 0 10px; padding: 8px 30px 6px;
+    color: var(--b-ink);
+    background: var(--b-grain), var(--b-board);
+    border: 3px solid var(--b-ink);
+    border-radius: var(--wobble-3);
+    box-shadow: var(--b-shadow);
+    transform: rotate(-1.2deg);
+}
+#screen-p-device h2::before,
+#screen-p-device h2::after {
+    content: ""; position: absolute; top: 9px; width: 11px; height: 11px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff2c4 0 2px, #d4a845 2.5px);
+    border: 2px solid var(--b-ink);
+}
+#screen-p-device h2::before { left: 9px; }
+#screen-p-device h2::after  { right: 9px; }
+#screen-p-device .role-desc { color: var(--b-ink-soft); font-weight: 700; }
+
+/* ---- 通用纸板卡片 ---- */
+#screen-p-device .polar-legend,
+#screen-p-device .pointing-indicator-panel,
+#screen-p-device .log-panel,
+#screen-p-device .mode-indicator,
+#settings-overlay .settings-box {
+    background: var(--b-grain), var(--b-board);
+    border: 3px solid var(--b-ink);
+    box-shadow: var(--b-shadow);
+    color: var(--b-ink);
+}
+
+/* ---- 按钮：纸板标签 + 马克笔排线 ---- */
+#screen-p-device .btn-primary,
+#screen-p-device .btn-secondary,
+#settings-overlay .btn-primary,
+#settings-overlay .btn-secondary {
+    color: var(--b-ink);
+    border: 3px solid var(--b-ink);
+    box-shadow: var(--b-shadow-sm);
+    transition: transform 0.12s, box-shadow 0.12s, background-color 0.2s;
+}
+#screen-p-device .btn-secondary,
+#settings-overlay .btn-secondary {
+    background: var(--b-grain), var(--b-board-light);
+}
+#screen-p-device .btn-primary,
+#settings-overlay .btn-primary {
+    background:
+        repeating-linear-gradient(-35deg, rgba(224, 165, 38, 0.75) 0 3.5px, transparent 3.5px 7px),
+        #f6d77a;
+}
+#screen-p-device .btn-secondary:hover:not(:disabled),
+#settings-overlay .btn-secondary:hover:not(:disabled) {
+    background:
+        repeating-linear-gradient(-35deg, rgba(224, 165, 38, 0.35) 0 3.5px, transparent 3.5px 7px),
+        var(--b-board-light);
+}
+#screen-p-device .btn-primary:hover:not(:disabled),
+#screen-p-device .btn-secondary:hover:not(:disabled),
+#settings-overlay .btn-primary:hover:not(:disabled),
+#settings-overlay .btn-secondary:hover:not(:disabled) {
+    transform: translate(-1px, -2px); box-shadow: 4px 6px 0 var(--b-edge);
+}
+#screen-p-device .btn-primary:active:not(:disabled),
+#screen-p-device .btn-secondary:active:not(:disabled),
+#settings-overlay .btn-primary:active:not(:disabled),
+#settings-overlay .btn-secondary:active:not(:disabled) {
+    transform: translate(2px, 3px); box-shadow: 1px 1px 0 var(--b-edge);
+}
+/* 指向模式下"返回定位"按钮变成魔法紫（:has 不支持时保持黄色，不影响功能） */
+#screen-p-device:has(.mode-badge.pointing) #btn-fix-positions {
+    color: #fff;
+    background:
+        repeating-linear-gradient(-35deg, rgba(60, 30, 120, 0.35) 0 3.5px, transparent 3.5px 7px),
+        var(--b-purple);
+}
+
+/* ---- 串口状态：纸板小牌 ---- */
+#screen-p-device .serial-status {
+    background: var(--b-grain), var(--b-cream);
+    border: 2.5px dashed var(--b-ink);
+    color: var(--b-ink);
+}
+#screen-p-device .status-dot { border-color: var(--b-ink); }
+
+/* ---- 模式指示条 ---- */
+#screen-p-device .mode-indicator {
+    display: inline-flex; margin: 4px auto 12px; padding: 8px 18px;
+    border-radius: var(--wobble-2);
+    transform: rotate(0.5deg);
+}
+#screen-p-device .mode-badge {
+    border: 2.5px solid var(--b-ink); border-radius: var(--wobble-3);
+    padding: 3px 14px; color: var(--b-ink); box-shadow: 2px 3px 0 var(--b-edge);
+}
+#screen-p-device .mode-badge.localization {
+    background: repeating-linear-gradient(-35deg, rgba(59, 111, 196, 0.55) 0 3.5px, transparent 3.5px 7px), #cfe0f7;
+}
+#screen-p-device .mode-badge.pointing {
+    color: #fff;
+    background: repeating-linear-gradient(-35deg, rgba(60, 30, 120, 0.4) 0 3.5px, transparent 3.5px 7px), var(--b-purple);
+    animation: b-magic 2.4s ease-in-out infinite;
+}
+@keyframes b-magic {
+    0%, 100% { box-shadow: 2px 3px 0 var(--b-edge), 0 0 0 0 rgba(255, 224, 102, 0); }
+    50%      { box-shadow: 2px 3px 0 var(--b-edge), 0 0 0 6px rgba(255, 224, 102, 0.45); }
+}
+#screen-p-device .mode-desc { color: var(--b-ink-soft); font-weight: 700; }
+
+/* ---- 极坐标画布：纸板舞台框 ---- */
+#screen-p-device #polar-canvas {
+    background: #dcc49c;
+    border: 4px solid var(--b-ink);
+    border-radius: var(--wobble-3);
+    box-shadow: 6px 8px 0 var(--b-edge), 12px 16px 22px rgba(60, 38, 20, 0.28);
+}
+
+/* ---- 图例：纸板卡 + 排线色块 ---- */
+#screen-p-device .polar-legend::before { border-bottom-color: var(--b-ink); color: var(--b-ink); }
+#screen-p-device .legend-item { border-bottom-color: rgba(74, 59, 48, 0.35); }
+#screen-p-device .legend-color {
+    border-color: var(--b-ink); box-shadow: 1.5px 2px 0 var(--b-edge);
+    background-image: repeating-linear-gradient(-35deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 4px) !important;
+}
+#screen-p-device .legend-data { color: var(--b-ink-soft); }
+
+/* ---- 当前指向 ---- */
+#screen-p-device .pointing-label,
+#screen-p-device .pointing-status { color: var(--b-ink-soft); }
+#screen-p-device .pointing-target { color: var(--b-ink); }
+
+/* ---- 日志：贴在纸板上的横线纸 ---- */
+#screen-p-device .log-panel h3 { color: var(--b-ink); }
+#screen-p-device .log-content {
+    background-color: var(--b-cream);
+    border: 2px solid var(--b-ink); border-left: 4px solid var(--b-red);
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ---- 设置弹窗 ---- */
+#settings-overlay .settings-box h2,
+#settings-overlay .setting-group h3,
+#settings-overlay .setting-row label { color: var(--b-ink); }
+#settings-overlay .setting-group h3 { border-bottom-color: var(--b-ink); }
+#settings-overlay .setting-group {
+    background: var(--b-cream); border: 2.5px dashed var(--b-ink);
+}
+#settings-overlay .setting-row input {
+    background: #fffaf0; border-color: var(--b-ink); color: var(--b-ink);
+}
+#settings-overlay .settings-actions { border-top-color: rgba(74, 59, 48, 0.4); }
+
+@media (max-width: 600px) {
+    #screen-p-device.active { padding-top: 40px; }
+    #screen-p-device::before { height: 24px; }
+    #screen-p-device::after { top: 24px; height: 16px; background-size: 38px 16px;
+        background-image: radial-gradient(circle at 50% 0, var(--b-red) 0 13px, var(--b-ink) 13px 16px, transparent 16.5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #screen-p-device .mode-badge.pointing { animation: none; }
+}
