@@ -760,7 +760,7 @@ var DEFAULT_SETTINGS = {
     pointingAziLimit: 1600,
     pointingStableRange: 1000,
     smoothAlpha: 0.3,
-    distanceOffset: -30,   // mm（设置面板中以 cm 显示）
+    distanceOffset: -300,   // mm（设置面板中以 cm 显示）
 };
 
 var settingsUI = {};

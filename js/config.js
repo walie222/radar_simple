@@ -33,7 +33,7 @@ var CONFIG = {
         smoothAlpha: 0.3,              // SMOOTH_ALPHA
         // 测距固定偏移（mm）：串口读到的 dis 会先减去该值再参与计算。
         // 默认 300mm = 30cm；填负数表示实际距离比读数更远（加上偏移）。可在「设置」中修改。
-        distanceOffset: -30,          // DISTANCE_OFFSET_MM
+        distanceOffset: -300,         // DISTANCE_OFFSET_MM
         updateIntervalMs: 1000,        // UPDATE_INTERVAL_MS (每秒处理)
     },
 
