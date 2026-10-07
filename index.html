@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>雷达指向演示 - 设备登记版</title>
-    <link rel="stylesheet" href="css/style.css?v=20261007i">
+    <!-- 手绘风字体（加载失败时自动回退到系统字体，不影响功能） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=ZCOOL+KuaiLe&display=swap">
+    <link rel="stylesheet" href="css/style.css?v=20261007sketch">
 </head>
 <body>
     <!-- ============ 阶段 1: 设备登记 ============ -->
@@ -28,17 +32,17 @@
                             <span class="device-status"></span>
                         </button>
                         <button data-device="T1" class="device-btn" title="目标设备 1">
-                            <span class="device-icon">🔴</span>
+                            <span class="device-icon">🎁</span>
                             <span class="device-label">T1</span>
                             <span class="device-status"></span>
                         </button>
                         <button data-device="T2" class="device-btn" title="目标设备 2">
-                            <span class="device-icon">🔴</span>
+                            <span class="device-icon">🎁</span>
                             <span class="device-label">T2</span>
                             <span class="device-status"></span>
                         </button>
                         <button data-device="T3" class="device-btn" title="目标设备 3">
-                            <span class="device-icon">🔴</span>
+                            <span class="device-icon">🎁</span>
                             <span class="device-label">T3</span>
                             <span class="device-status"></span>
                         </button>
@@ -112,7 +116,7 @@
         <div class="t-device-container">
             <div id="t-status-display" class="t-status-display red">
                 <div class="t-device-header">
-                    <span class="t-device-icon">🔴</span>
+                    <span class="t-device-icon" id="t-device-icon">🔴</span>
                     <span class="t-device-name" id="t-device-name"></span>
                 </div>
                 <div class="t-status-text" id="t-status-text">等待指向...</div>
@@ -209,9 +213,9 @@
     <!-- PubNub SDK for cross-device messaging -->
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.27.3.js"></script>
     <!-- Our code -->
-    <script src="js/config.js?v=20261007i"></script>
-    <script src="js/serial_reader.js?v=20261007i"></script>
-    <script src="js/polar_plot.js?v=20261007i"></script>
-    <script src="js/main.js?v=20261007i"></script>
+    <script src="js/config.js?v=20261007sketch"></script>
+    <script src="js/serial_reader.js?v=20261007sketch"></script>
+    <script src="js/polar_plot.js?v=20261007sketch"></script>
+    <script src="js/main.js?v=20261007sketch"></script>
 </body>
 </html>
