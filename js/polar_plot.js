@@ -181,7 +181,7 @@ var PolarPlot = (function() {
             c.fill();
 
             // ===== 设备数据点 =====
-            var labels = ['T1', 'T2', 'T3'];
+            var labels = CONFIG.DEVICE_LABELS;
             for (var i = 0; i < 3; i++) {
                 var dev = self.devices[i];
                 if (!dev) continue;

@@ -18,6 +18,9 @@ var CONFIG = {
         baudRate: 115200,
     },
 
+    // 设备标签（与 point_demo.py DEVICE_LABELS 一致）
+    DEVICE_LABELS: ['设备1', '设备2', '设备3'],
+
     // 数据处理参数（与 point_demo_test1.py 完全一致）
     DATA: {
         smoothingWindow: 5,             // SMOOTHING_WINDOW

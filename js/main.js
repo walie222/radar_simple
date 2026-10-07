@@ -429,7 +429,7 @@ function processData(idx, dis, azi) {
 
     // Step 0: Outlier detection — skip invalid measurements entirely
     if (!isValidMeasurement(idx, dis, azi)) {
-        logMsg('⚠️ 设备 T' + (idx + 1) + ' 数据离群，已过滤 (azi=' + azi + ', dis=' + dis + ')');
+        logMsg('⚠️ ' + CONFIG.DEVICE_LABELS[idx] + ' 数据离群，已过滤 (azi=' + azi + ', dis=' + dis + ')');
         // Still render with existing data (no update to history/plot)
         state.polarPlot.setHighlight(computeBestIdx());
         state.polarPlot.render();
@@ -442,7 +442,14 @@ function processData(idx, dis, azi) {
         dev.history.shift();
     }
 
-    // Step 2: Compute window average then apply EMA smoothing
+    // Step 2: Wait until we have enough samples before showing (aligns with Python's behavior)
+    if (dev.history.length < CONFIG.DATA.smoothingWindow) {
+        state.polarPlot.setHighlight(computeBestIdx());
+        state.polarPlot.render();
+        return;
+    }
+
+    // Step 3: Compute window average then apply EMA smoothing
     var avgDis = 0, avgAzi = 0;
     for (var i = 0; i < dev.history.length; i++) {
         avgDis += dev.history[i].dis;
@@ -458,12 +465,12 @@ function processData(idx, dis, azi) {
     var aziDeg = parseFloat((dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1));
     var disMm  = Math.round(dev.smoothedDis);
 
-    // Step 3: Update polar plot and legend
+    // Step 4: Update polar plot and legend
     state.polarPlot.updateDevice(idx, disMm, aziDeg);
 
     updateLegend(idx, disMm, aziDeg);
 
-    // Step 4: Compute best_idx across ALL devices (same as Python's compute_best_idx)
+    // Step 5: Compute best_idx across ALL devices (same as Python's compute_best_idx)
     var newBestIdx = computeBestIdx();
 
     // Debounce: only broadcast after 3 consecutive frames agree on the same target
