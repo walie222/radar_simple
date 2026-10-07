@@ -26,14 +26,14 @@ var CONFIG = {
         smoothingWindow: 5,             // SMOOTHING_WINDOW
         aziToDeg: 100.0,               // AZI_TO_DEG
         maxDisplayAzi: 90,             // MAX_DISPLAY_AZI
-        aziOutlierThreshold: 3000,     // AZI_OUTLIER_THRESHOLD
+        aziOutlierThreshold: 8000,     // AZI_OUTLIER_THRESHOLD
         disOutlierThreshold: 2000,     // DIS_OUTLIER_THRESHOLD
-        pointingAziLimit: 1000,        // POINTING_AZI_LIMIT
+        pointingAziLimit: 1600,        // POINTING_AZI_LIMIT
         pointingStableRange: 1000,     // POINTING_STABLE_RANGE
         smoothAlpha: 0.3,              // SMOOTH_ALPHA
         // 测距固定偏移（mm）：串口读到的 dis 会先减去该值再参与计算。
         // 默认 300mm = 30cm；填负数表示实际距离比读数更远（加上偏移）。可在「设置」中修改。
-        distanceOffset: 300,           // DISTANCE_OFFSET_MM
+        distanceOffset: -30,          // DISTANCE_OFFSET_MM
         updateIntervalMs: 1000,        // UPDATE_INTERVAL_MS (每秒处理)
     },
 

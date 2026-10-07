@@ -755,12 +755,12 @@ function handlePointStop() {
 var DEFAULT_SETTINGS = {
     labels: ['设备1', '设备2', '设备3'],
     smoothingWindow: 5,
-    aziOutlierThreshold: 3000,
+    aziOutlierThreshold: 8000,
     disOutlierThreshold: 2000,
-    pointingAziLimit: 1000,
+    pointingAziLimit: 1600,
     pointingStableRange: 1000,
     smoothAlpha: 0.3,
-    distanceOffset: 300,   // mm（设置面板中以 cm 显示）
+    distanceOffset: -30,   // mm（设置面板中以 cm 显示）
 };
 
 var settingsUI = {};
