@@ -19,6 +19,8 @@ var state = {
     // Debounce: only broadcast after N consecutive frames agree
     _debounceCount: 0,
     _debounceTarget: -1,
+    // Mode: 'localization' (default) | 'pointing' (locked positions)
+    mode: 'localization',
 };
 
 // ========== DOM References (aligned with current index.html) ==========
@@ -33,7 +35,10 @@ var pUI = {
     statusText:     document.getElementById('status-text'),
     btnConnect:     document.getElementById('btn-connect'),
     btnDisconnect:  document.getElementById('btn-disconnect'),
+    btnFixPos:      document.getElementById('btn-fix-positions'),
     btnSettings:    document.getElementById('btn-settings'),
+    modeBadge:      document.getElementById('mode-badge'),
+    modeDesc:       document.getElementById('mode-desc'),
     polarCanvas:    document.getElementById('polar-canvas'),
     logContent:     document.getElementById('log-content'),
     pointingTarget: document.getElementById('pointing-target'),
@@ -57,6 +62,50 @@ var regUI = {
     displayName:     document.getElementById('display-device-name'),
     displayType:     document.getElementById('display-device-type'),
 };
+
+// ========== Mode Switching ==========
+function updateModeUI() {
+    if (state.mode === 'localization') {
+        pUI.modeBadge.textContent = '📡 定位模式';
+        pUI.modeBadge.className   = 'mode-badge localization';
+        pUI.modeDesc.textContent  = '设备随雷达实时移动';
+        pUI.btnFixPos.textContent = '📍 位置确定';
+        pUI.btnFixPos.title       = '切换到指向模式，锁存设备坐标';
+    } else {
+        pUI.modeBadge.textContent = '🎯 指向模式';
+        pUI.modeBadge.className   = 'mode-badge pointing';
+        pUI.modeDesc.textContent  = '设备坐标已锁定，仅数据实时更新';
+        pUI.btnFixPos.textContent = '🔄 返回定位';
+        pUI.btnFixPos.title       = '回到定位模式，设备恢复实时移动';
+    }
+}
+
+function switchMode(newMode) {
+    state.mode = newMode;
+    updateModeUI();
+
+    if (newMode === 'pointing') {
+        // Lock each device's position at current smoothed values
+        for (var i = 0; i < state.devices.length; i++) {
+            var dev = state.devices[i];
+            if (dev && dev.history.length > 0) {
+                dev.lockedDis = dev.smoothedDis;
+                dev.lockedAzi = dev.smoothedAzi;
+            }
+        }
+        logMsg('🔒 已进入指向模式 — 设备坐标已锁定');
+    } else {
+        // Clear locks, devices go back to live positions
+        for (var j = 0; j < state.devices.length; j++) {
+            var dj = state.devices[j];
+            if (dj) {
+                dj.lockedDis = null;
+                dj.lockedAzi = null;
+            }
+        }
+        logMsg('📡 已返回定位模式 — 设备恢复实时移动');
+    }
+}
 
 // ========== Init ==========
 // Scripts load at end of <body>, DOMContentLoaded may have already fired.
@@ -289,12 +338,24 @@ function initPScreen() {
     // Initialize polar plot
     state.polarPlot = PolarPlot.create('polar-canvas');
 
+    // Initialize mode indicator (default: localization)
+    updateModeUI();
+
     // Connect/disconnect buttons
     pUI.btnConnect.addEventListener('click', startSerialConnection);
     pUI.btnDisconnect.addEventListener('click', disconnectSerial);
 
     // Settings panel
     initSettingsPanel();
+
+    // Mode switch button
+    pUI.btnFixPos.addEventListener('click', function () {
+        if (state.mode === 'localization') {
+            switchMode('pointing');
+        } else {
+            switchMode('localization');
+        }
+    });
 
     // No periodic broadcast needed — only send on pointing state change
 }
@@ -470,9 +531,21 @@ function processData(idx, dis, azi) {
     var disMm  = Math.round(dev.smoothedDis);
     var disCm  = parseFloat((disMm / 10).toFixed(1)); // mm → cm, 1 decimal
 
-    // Step 4: Update polar plot and legend (plot still uses mm internally)
-    state.polarPlot.updateDevice(idx, disMm, aziDeg);
+    // Step 4: Update polar plot
+    // In localization mode: devices follow live smoothed data
+    // In pointing mode: devices stay at locked position (only update if not yet locked)
+    if (state.mode === 'localization') {
+        state.polarPlot.updateDevice(idx, disMm, aziDeg);
+    } else {
+        // Pointing mode: use locked position for the plot
+        if (dev.lockedDis !== null && dev.lockedAzi !== null) {
+            var lockAziDeg = parseFloat((dev.lockedAzi / CONFIG.DATA.aziToDeg).toFixed(1));
+            state.polarPlot.updateDevice(idx, Math.round(dev.lockedDis), lockAziDeg);
+        }
+        // If not yet locked (device appeared after mode switch), keep last known position
+    }
 
+    // Legend always shows live data (both modes)
     updateLegend(idx, disCm, aziDeg);
 
     // Step 5: Compute best_idx across ALL devices (same as Python's compute_best_idx)

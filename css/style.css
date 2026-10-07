@@ -199,6 +199,25 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
     margin: 12px 0 14px; flex-wrap: wrap;
 }
 .serial-controls .btn-secondary { margin-top: 0; }
+
+/* ---- Mode Indicator ---- */
+.mode-indicator {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 10px 16px;
+    background: rgba(255,255,255,0.04); border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
+}
+.mode-badge {
+    font-size: 1em; font-weight: 700; padding: 4px 14px; border-radius: 20px; white-space: nowrap;
+}
+.mode-badge.localization {
+    background: rgba(59,130,246,0.2); color: #60a5fa;
+}
+.mode-badge.pointing {
+    background: rgba(234,179,8,0.2); color: #fbbf24;
+}
+.mode-desc {
+    color: #94a3b8; font-size: 0.9em;
+}
+
 .serial-status {
     display: flex; align-items: center; gap: 8px;
     background: #fff; padding: 7px 16px;
