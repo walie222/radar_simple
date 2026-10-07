@@ -348,11 +348,12 @@ function disconnectSerial() {
 }
 
 // ========== Data Processing ==========
-// 严格对齐 point_demo_test1.py 的数据处理逻辑：
-// 1. 每收到一条数据，存入对应设备的原始数据队列（最多 SMOOTHING_WINDOW=5 条）
-// 2. 计算窗口均值 → EMA(alpha=0.3) 平滑
-// 3. 更新极坐标图 + 图例
-// 4. 调用 computeBestIdx() 判断指向（和 Python 完全一致）
+// 严格对齐 point_demo.py 的数据处理逻辑：
+// 1. 离群检测（AZI_OUTLIER_THRESHOLD / DIS_OUTLIER_THRESHOLD）— 与 is_valid_measurement() 一致
+// 2. 每收到一条数据，存入对应设备的原始数据队列（最多 SMOOTHING_WINDOW=5 条）
+// 3. 计算窗口均值 → EMA(alpha=0.3) 平滑
+// 4. 更新极坐标图 + 图例
+// 5. 调用 computeBestIdx() 判断指向（和 Python 完全一致）
 function onData(addr, dis, azi) {
     if (addr === null || dis === null || azi === null) return;
 
@@ -367,12 +368,72 @@ function onData(addr, dis, azi) {
     }
 }
 
+/**
+ * 离群值检测 — 严格对齐 point_demo.py 中的 is_valid_measurement()
+ *
+ * Python 逻辑：
+ *   - 需要至少 SMOOTHING_WINDOW 条历史数据才做检测
+ *   - current_azi 与历史均值偏差 > AZI_OUTLIER_THRESHOLD → 无效
+ *   - current_dis 与历史均值偏差 > DIS_OUTLIER_THRESHOLD → 无效
+ *   - current_dis < 0 → 无效
+ *
+ * @returns {boolean} true=有效，false=离群/无效
+ */
+function isValidMeasurement(idx, dis, azi) {
+    var dev = state.devices[idx];
+    if (!dev || !dev.history) return true; // 尚无历史，视为有效（冷启动）
+
+    var history = dev.history;
+
+    // 需要至少 smoothingWindow 条历史数据才开始做离群检测
+    if (history.length < CONFIG.DATA.smoothingWindow) return true;
+
+    // 距离为负直接无效
+    if (dis < 0) return false;
+
+    // 计算历史均值（不含当前帧）
+    var aziSum = 0, disSum = 0;
+    for (var i = 0; i < history.length; i++) {
+        aziSum += history[i].azi;
+        disSum += history[i].dis;
+    }
+    var aziMean = aziSum / history.length;
+    var disMean = disSum / history.length;
+
+    // 角度离群检测
+    if (Math.abs(azi - aziMean) > CONFIG.DATA.aziOutlierThreshold) {
+        console.log('[Outlier] Device ' + idx + ' azi OUTLIER: cur=' + azi + ' mean=' + aziMean.toFixed(1) +
+                    ' diff=' + Math.abs(azi - aziMean).toFixed(1) +
+                    ' threshold=' + CONFIG.DATA.aziOutlierThreshold);
+        return false;
+    }
+
+    // 距离离群检测
+    if (Math.abs(dis - disMean) > CONFIG.DATA.disOutlierThreshold) {
+        console.log('[Outlier] Device ' + idx + ' dis OUTLIER: cur=' + dis + ' mean=' + disMean.toFixed(1) +
+                    ' diff=' + Math.abs(dis - disMean).toFixed(1) +
+                    ' threshold=' + CONFIG.DATA.disOutlierThreshold);
+        return false;
+    }
+
+    return true;
+}
+
 function processData(idx, dis, azi) {
 
     var dev = state.devices[idx];
     if (!dev) {
         dev = { smoothedDis: dis, smoothedAzi: azi, history: [] };
         state.devices[idx] = dev;
+    }
+
+    // Step 0: Outlier detection — skip invalid measurements entirely
+    if (!isValidMeasurement(idx, dis, azi)) {
+        logMsg('⚠️ 设备 T' + (idx + 1) + ' 数据离群，已过滤 (azi=' + azi + ', dis=' + dis + ')');
+        // Still render with existing data (no update to history/plot)
+        state.polarPlot.setHighlight(computeBestIdx());
+        state.polarPlot.render();
+        return;
     }
 
     // Step 1: Push raw data into window buffer (max SMOOTHING_WINDOW entries)
