@@ -474,36 +474,41 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 }
 
 /* ============================================
-   T 设备：被指向时的手绘纸板人偶（T1 狐狸 / T2 企鹅 / T3 青蛙）（js/cutout_character.js）
-   纯展示层，不影响任何判定逻辑
+   T 设备：被指向时的手绘纸板人偶（T1 狐狸 / T2 企鹅 / T3 青蛙）
+   js/cutout_character.js —— 纯展示层，不影响任何判定逻辑
+   性能要点：人偶已预渲染为位图，下面所有动画都只改 transform / opacity，
+   由合成线程完成，每帧不触发重绘。
    ============================================ */
 .rb-stage {
     position: fixed; inset: 0; z-index: 50;
-    display: none; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     pointer-events: none; overflow: hidden;
+    visibility: hidden;               /* 常驻 DOM，只切换可见性 → 出场时无需重新布局 */
 }
-.rb-stage.is-visible { display: flex; }
+.rb-stage.is-visible { visibility: visible; }
 
-/* 升起/下沉由 JS (WAAPI) 驱动；起始位置在屏幕外，防止首帧闪现 */
-.rb-mover { position: relative; transform: translateY(120vh); will-change: transform; }
-.rb-stage.is-visible .rb-mover { transform: translateY(120vh); }
+/* 升起/下沉由 JS (Web Animations API) 驱动 */
+.rb-mover  { position: relative; will-change: transform; }
 
-/* 持续轻微上下浮动 + 小幅摆动，像手举着纸片人 */
-.rb-bobber { position: relative; transform-origin: 50% 90%; }
+/* 持续轻微上下浮动 + 小幅摆动，像手举着人偶 */
+.rb-bobber { position: relative; transform-origin: 50% 90%; will-change: transform; }
 .rb-bobber.is-bobbing { animation: rb-bob 2.6s ease-in-out infinite; }
 @keyframes rb-bob {
     0%, 100% { transform: translateY(0)     rotate(-1.2deg); }
     50%      { transform: translateY(-14px) rotate(1.2deg); }
 }
 
-.rb-svg {
-    display: block; position: relative; z-index: 1;
-    height: min(50vh, 78vw); width: auto; aspect-ratio: 380 / 390;
-    overflow: visible;
-    filter: drop-shadow(8px 10px 6px rgba(60, 38, 20, 0.45));
+/* 人偶盒子：尺寸公式需与 JS 中 puppetCssHeight() 一致 */
+.rb-puppet {
+    position: relative; z-index: 1;
+    height: min(50vh, 78vw); aspect-ratio: 380 / 390;
 }
+.rb-layer, .rb-ov { position: absolute; display: block; }
+.rb-body { inset: 0; }
+.rb-layer canvas { display: block; width: 100%; height: 100%; }
+.rb-ov { overflow: visible; }
 
-/* 人偶背后的纸板棍（一直延伸到屏幕外），与参考图一致：牛皮纸板 + 马克笔描边 */
+/* 人偶背后的纸板棍（一直延伸到屏幕外） */
 .rb-stick {
     position: absolute; left: 50%; top: 84%; z-index: 0;
     width: 30px; height: 80vh; margin-left: -15px;
@@ -515,34 +520,35 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
     transform: rotate(0.8deg);
 }
 
-/* SVG 内部小动画：眨眼、挥手、信号波纹、到位闪光 */
-.rb-svg .rb-eyes { transform-box: fill-box; transform-origin: center; animation: rb-blink 4.2s infinite; }
+/* 眨眼（眼睛是独立小图层，只做 scaleY） */
+.rb-eyes { transform-origin: 50% 50%; animation: rb-blink 4.2s infinite; will-change: transform; }
 @keyframes rb-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
 
-.rb-svg .rb-arm-wave { transform-box: view-box; } /* 旋转中心由每个角色内联指定 */
-.rb-stage.is-arrived .rb-arm-wave { animation: rb-wave 0.9s ease-in-out infinite; }
+/* 挥手（手臂是独立纸板片，绕关节旋转；旋转中心由 JS 内联指定） */
+.rb-arm { will-change: transform; }
+.rb-stage.is-arrived .rb-arm { animation: rb-wave 0.9s ease-in-out infinite; }
 @keyframes rb-wave { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(16deg); } }
 
-.rb-svg .rb-signal path { opacity: 0; }
-.rb-stage.is-arrived .rb-signal path { animation: rb-signal 1.6s ease-out infinite; }
-.rb-stage.is-arrived .rb-signal path:nth-child(2) { animation-delay: 0.25s; }
+/* 雷达信号波纹（只改 opacity） */
+.rb-signal { opacity: 0; will-change: opacity; }
+.rb-stage.is-arrived .rb-signal { animation: rb-signal 1.6s ease-out infinite; }
+.rb-stage.is-arrived .rb-signal-2 { animation-delay: 0.25s; }
 @keyframes rb-signal { 0% { opacity: 0; } 30% { opacity: 0.9; } 100% { opacity: 0; } }
 
-.rb-svg .rb-sparks path { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
-.rb-stage.is-arrived .rb-sparks path { animation: rb-spark 0.9s ease-out forwards; }
-.rb-stage.is-arrived .rb-sparks path:nth-child(2) { animation-delay: 0.06s; }
-.rb-stage.is-arrived .rb-sparks path:nth-child(3) { animation-delay: 0.12s; }
-.rb-stage.is-arrived .rb-sparks path:nth-child(4) { animation-delay: 0.18s; }
+/* 到位时的"闪光"（只改 transform / opacity） */
+.rb-sparks { opacity: 0; transform: scale(0.6); will-change: transform, opacity; }
+.rb-stage.is-arrived .rb-sparks { animation: rb-spark 0.8s ease-out forwards; }
 @keyframes rb-spark {
-    0%   { stroke-dashoffset: 1; opacity: 1; }
-    45%  { stroke-dashoffset: 0; opacity: 1; }
-    100% { stroke-dashoffset: 0; opacity: 0; }
+    0%   { opacity: 0; transform: scale(0.6); }
+    35%  { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 0; transform: scale(1.15); }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .t-status-stack { transition: none; }
     .rb-bobber.is-bobbing,
-    .rb-stage.is-arrived .rb-arm-wave,
-    .rb-stage.is-arrived .rb-signal path,
-    .rb-svg .rb-eyes { animation: none; }
+    .rb-stage.is-arrived .rb-arm,
+    .rb-stage.is-arrived .rb-signal,
+    .rb-stage.is-arrived .rb-sparks,
+    .rb-eyes { animation: none; }
 }
