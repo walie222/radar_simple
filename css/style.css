@@ -573,10 +573,10 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 }
 
 /* ============================================
-   主控设备 (P) — 纸板剧场主题
+   纸板剧场主题（登记页 → 房间信息 → 主控设备 P → 设置弹窗 统一风格）
    与 T 设备的纸板人偶同一套视觉语言：
    牛皮纸板 + 棕色马克笔描边 + 斜线排线上色 + 纸板厚度投影 + 双脚钉 + 红色幕布
-   只覆盖 #screen-p-device 与设置弹窗，不影响登记页与 T 设备页
+   覆盖 #screen-register、#room-overlay、#screen-p-device、#settings-overlay；T 设备页保持原样
    ============================================ */
 :root {
     --b-ink:    #4a3b30;   /* 棕色马克笔 */
@@ -595,7 +595,7 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 }
 
 /* ---- 舞台背景：浅色瓦楞纸板 + 顶部红色幕布 ---- */
-#screen-p-device.active {
+:is(#screen-register, #screen-p-device).active {
     min-height: 100vh;
     position: relative;
     padding-top: 54px;
@@ -604,12 +604,12 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
         var(--b-grain),
         repeating-linear-gradient(0deg, rgba(255, 244, 220, 0.35) 0 5px, rgba(120, 85, 50, 0.07) 5px 10px);
 }
-#screen-p-device::before,
-#screen-p-device::after {
+:is(#screen-register, #screen-p-device)::before,
+:is(#screen-register, #screen-p-device)::after {
     content: ""; position: absolute; left: 0; right: 0; pointer-events: none; z-index: 2;
 }
 /* 幕布横幅（斜线排线的红色） */
-#screen-p-device::before {
+:is(#screen-register, #screen-p-device)::before {
     top: 0; height: 34px;
     background:
         repeating-linear-gradient(115deg, rgba(90, 20, 10, 0.28) 0 3px, transparent 3px 9px),
@@ -617,16 +617,16 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
     border-bottom: 3px solid var(--b-ink);
 }
 /* 幕布下沿的扇形波浪（带马克笔描边） */
-#screen-p-device::after {
+:is(#screen-register, #screen-p-device)::after {
     top: 34px; height: 22px;
     background:
         radial-gradient(circle at 50% 0, var(--b-red) 0 19px, var(--b-ink) 19px 22px, transparent 22.5px) 0 0 / 52px 22px repeat-x;
 }
 
-#screen-p-device .container { position: relative; z-index: 1; }
+:is(#screen-register, #screen-p-device) .container { position: relative; z-index: 1; }
 
 /* ---- 标题：钉在幕布下的纸板招牌 ---- */
-#screen-p-device h2 {
+:is(#screen-register h1, #screen-p-device h2) {
     display: inline-block; position: relative;
     margin: 6px 0 10px; padding: 8px 30px 6px;
     color: var(--b-ink);
@@ -636,14 +636,14 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
     box-shadow: var(--b-shadow);
     transform: rotate(-1.2deg);
 }
-#screen-p-device h2::before,
-#screen-p-device h2::after {
+:is(#screen-register h1, #screen-p-device h2)::before,
+:is(#screen-register h1, #screen-p-device h2)::after {
     content: ""; position: absolute; top: 9px; width: 11px; height: 11px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #fff2c4 0 2px, #d4a845 2.5px);
     border: 2px solid var(--b-ink);
 }
-#screen-p-device h2::before { left: 9px; }
-#screen-p-device h2::after  { right: 9px; }
+:is(#screen-register h1, #screen-p-device h2)::before { left: 9px; }
+:is(#screen-register h1, #screen-p-device h2)::after  { right: 9px; }
 #screen-p-device .role-desc { color: var(--b-ink-soft); font-weight: 700; }
 
 /* ---- 通用纸板卡片 ---- */
@@ -651,7 +651,10 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 #screen-p-device .pointing-indicator-panel,
 #screen-p-device .log-panel,
 #screen-p-device .mode-indicator,
-#settings-overlay .settings-box {
+#settings-overlay .settings-box,
+#screen-register .register-box,
+#screen-register .registered-info,
+#room-overlay .room-info-box {
     background: var(--b-grain), var(--b-board);
     border: 3px solid var(--b-ink);
     box-shadow: var(--b-shadow);
@@ -659,10 +662,7 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 }
 
 /* ---- 按钮：纸板标签 + 马克笔排线 ---- */
-#screen-p-device .btn-primary,
-#screen-p-device .btn-secondary,
-#settings-overlay .btn-primary,
-#settings-overlay .btn-secondary {
+:is(#screen-register, #screen-p-device, #settings-overlay, #room-overlay) :is(.btn-primary, .btn-secondary) {
     color: var(--b-ink);
     border: 3px solid var(--b-ink);
     box-shadow: var(--b-shadow-sm);
@@ -672,8 +672,7 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 #settings-overlay .btn-secondary {
     background: var(--b-grain), var(--b-board-light);
 }
-#screen-p-device .btn-primary,
-#settings-overlay .btn-primary {
+:is(#screen-register, #screen-p-device, #settings-overlay, #room-overlay) .btn-primary {
     background:
         repeating-linear-gradient(-35deg, rgba(224, 165, 38, 0.75) 0 3.5px, transparent 3.5px 7px),
         #f6d77a;
@@ -684,16 +683,10 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
         repeating-linear-gradient(-35deg, rgba(224, 165, 38, 0.35) 0 3.5px, transparent 3.5px 7px),
         var(--b-board-light);
 }
-#screen-p-device .btn-primary:hover:not(:disabled),
-#screen-p-device .btn-secondary:hover:not(:disabled),
-#settings-overlay .btn-primary:hover:not(:disabled),
-#settings-overlay .btn-secondary:hover:not(:disabled) {
+:is(#screen-register, #screen-p-device, #settings-overlay, #room-overlay) :is(.btn-primary, .btn-secondary):hover:not(:disabled) {
     transform: translate(-1px, -2px); box-shadow: 4px 6px 0 var(--b-edge);
 }
-#screen-p-device .btn-primary:active:not(:disabled),
-#screen-p-device .btn-secondary:active:not(:disabled),
-#settings-overlay .btn-primary:active:not(:disabled),
-#settings-overlay .btn-secondary:active:not(:disabled) {
+:is(#screen-register, #screen-p-device, #settings-overlay, #room-overlay) :is(.btn-primary, .btn-secondary):active:not(:disabled) {
     transform: translate(2px, 3px); box-shadow: 1px 1px 0 var(--b-edge);
 }
 /* 指向模式下"返回定位"按钮变成魔法紫（:has 不支持时保持黄色，不影响功能） */
@@ -779,10 +772,91 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 }
 #settings-overlay .settings-actions { border-top-color: rgba(74, 59, 48, 0.4); }
 
+
+/* ---- 登记页 ---- */
+#screen-register h1 { font-size: 2.2em; padding: 8px 34px 6px; margin-top: 8px; }
+/* h1::after 原本是荧光笔划线，这里改作右侧双脚钉 */
+#screen-register h1::after {
+    left: auto; bottom: auto; right: 9px; height: 11px; width: 11px;
+    opacity: 1; z-index: auto; transform: none; border-radius: 50%;
+}
+#screen-register .subtitle { color: var(--b-ink-soft); font-weight: 700; margin-top: 8px; }
+#screen-register .register-box { border-radius: var(--wobble-1); }
+/* 纸胶带：半透明牛皮色 */
+#screen-register .register-box::before,
+#room-overlay .room-info-box::before {
+    background: rgba(240, 222, 180, 0.85);
+    border-left: 2px dashed rgba(74, 59, 48, 0.3);
+    border-right: 2px dashed rgba(74, 59, 48, 0.3);
+    box-shadow: 1px 2px 0 rgba(74, 59, 48, 0.2);
+}
+#screen-register .form-group label { color: var(--b-ink); }
+#screen-register .form-group input {
+    background: var(--b-cream); color: var(--b-ink);
+    border: 2.5px solid var(--b-ink); box-shadow: inset 0 2px 0 rgba(74, 59, 48, 0.08);
+}
+#screen-register .form-group input::placeholder { color: rgba(110, 90, 72, 0.6); }
+#screen-register .form-group input:focus { background: #fffaf0; box-shadow: var(--b-shadow-sm); }
+#screen-register .hint { color: var(--b-ink-soft); }
+
+/* 设备类型：纸板小卡 */
+#screen-register .device-btn {
+    background: var(--b-grain), var(--b-cream);
+    color: var(--b-ink);
+    border: 2.5px solid var(--b-ink);
+    box-shadow: var(--b-shadow-sm);
+}
+#screen-register .device-btn:hover:not(:disabled) {
+    background:
+        repeating-linear-gradient(-35deg, rgba(224, 165, 38, 0.3) 0 3.5px, transparent 3.5px 7px),
+        var(--b-cream);
+    box-shadow: 4px 6px 0 var(--b-edge);
+}
+#screen-register .device-btn.selected,
+#screen-register .device-btn.selected:hover:not(:disabled) {
+    background:
+        repeating-linear-gradient(-35deg, rgba(224, 165, 38, 0.75) 0 3.5px, transparent 3.5px 7px),
+        #f6d77a;
+    box-shadow: 4px 6px 0 var(--b-edge);
+}
+#screen-register .device-btn.selected::after {
+    background: radial-gradient(circle at 35% 35%, #fff2c4 0 3px, #d4a845 3.5px);
+    color: var(--b-ink); border-color: var(--b-ink);
+}
+#screen-register .device-status { color: #2f7d3a; }
+#screen-register .btn-primary:disabled {
+    background: var(--b-grain), #e6d8bd;
+    color: rgba(74, 59, 48, 0.45); border: 3px dashed rgba(74, 59, 48, 0.45);
+    box-shadow: none; transform: none;
+}
+#screen-register .registered-info { border-radius: var(--wobble-2); }
+#screen-register .registered-info h3 { color: var(--b-ink); }
+#screen-register .registered-info p { color: var(--b-ink-soft); }
+
+/* ---- 房间信息弹窗（登记之后、进入系统之前） ---- */
+#room-overlay { background: rgba(60, 38, 20, 0.55); }
+#room-overlay .room-info-box { border-radius: var(--wobble-1); }
+#room-overlay .room-info-box h2 { color: var(--b-ink); }
+#room-overlay .room-code-label,
+#room-overlay .room-hint { color: var(--b-ink-soft); font-weight: 700; }
+#room-overlay .room-code-value {
+    color: var(--b-ink); background: var(--b-cream);
+    border: 3px dashed var(--b-ink); box-shadow: inset 0 2px 0 rgba(74, 59, 48, 0.08);
+}
+#settings-overlay { background: rgba(60, 38, 20, 0.55); }
+/* 房间信息弹窗出现时登记页已隐藏，页面背景也换成瓦楞纸板，避免露出旧的方格纸 */
+body:has(#room-overlay) {
+    background-color: #e3cfa9;
+    background-image:
+        var(--b-grain),
+        repeating-linear-gradient(0deg, rgba(255, 244, 220, 0.35) 0 5px, rgba(120, 85, 50, 0.07) 5px 10px);
+    background-size: auto;
+}
+
 @media (max-width: 600px) {
-    #screen-p-device.active { padding-top: 40px; }
-    #screen-p-device::before { height: 24px; }
-    #screen-p-device::after { top: 24px; height: 16px; background-size: 38px 16px;
+    :is(#screen-register, #screen-p-device).active { padding-top: 40px; }
+    :is(#screen-register, #screen-p-device)::before { height: 24px; }
+    :is(#screen-register, #screen-p-device)::after { top: 24px; height: 16px; background-size: 38px 16px;
         background-image: radial-gradient(circle at 50% 0, var(--b-red) 0 13px, var(--b-ink) 13px 16px, transparent 16.5px); }
 }
 @media (prefers-reduced-motion: reduce) {

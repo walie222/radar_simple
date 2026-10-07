@@ -426,6 +426,9 @@ function onData(addr, dis, azi) {
     var idx = parseInt(addr, 10) - 1;
     if (idx < 0 || idx > 2) return;
 
+    // 测距固定偏移校正（mm）：在数据入口统一扣除，后续离群检测 / 平滑 / 绘图 / 广播都使用校正后的距离
+    dis = applyDistanceOffset(dis);
+
     try {
         processData(idx, dis, azi);
     } catch(e) {
@@ -757,6 +760,7 @@ var DEFAULT_SETTINGS = {
     pointingAziLimit: 1000,
     pointingStableRange: 1000,
     smoothAlpha: 0.3,
+    distanceOffset: 300,   // mm（设置面板中以 cm 显示）
 };
 
 var settingsUI = {};
@@ -804,6 +808,7 @@ function populateSettingsForm() {
     document.getElementById('set-pointing-azi-limit').value     = CONFIG.DATA.pointingAziLimit;
     document.getElementById('set-pointing-stable-range').value  = CONFIG.DATA.pointingStableRange;
     document.getElementById('set-smooth-alpha').value           = CONFIG.DATA.smoothAlpha;
+    document.getElementById('set-dis-offset').value             = (Number(CONFIG.DATA.distanceOffset) || 0) / 10; // mm → cm
 }
 
 function readSettingsForm() {
@@ -819,6 +824,7 @@ function readSettingsForm() {
         pointingAziLimit:    parseInt(document.getElementById('set-pointing-azi-limit').value, 10),
         pointingStableRange: parseInt(document.getElementById('set-pointing-stable-range').value, 10),
         smoothAlpha:         parseFloat(document.getElementById('set-smooth-alpha').value),
+        distanceOffset:      Math.round(parseFloat(document.getElementById('set-dis-offset').value) * 10), // cm → mm
     };
 }
 
@@ -830,6 +836,7 @@ function resetSettingsToDefaults() {
     CONFIG.DATA.pointingAziLimit     = DEFAULT_SETTINGS.pointingAziLimit;
     CONFIG.DATA.pointingStableRange  = DEFAULT_SETTINGS.pointingStableRange;
     CONFIG.DATA.smoothAlpha          = DEFAULT_SETTINGS.smoothAlpha;
+    CONFIG.DATA.distanceOffset       = DEFAULT_SETTINGS.distanceOffset;
 }
 
 function applySettingsFromForm() {
@@ -843,6 +850,8 @@ function applySettingsFromForm() {
     if (isNaN(s.pointingStableRange) || s.pointingStableRange < 100) s.pointingStableRange = DEFAULT_SETTINGS.pointingStableRange;
     if (isNaN(s.smoothAlpha) || s.smoothAlpha < 0.05) s.smoothAlpha = DEFAULT_SETTINGS.smoothAlpha;
     if (s.smoothAlpha > 1) s.smoothAlpha = 1;
+    if (isNaN(s.distanceOffset)) s.distanceOffset = DEFAULT_SETTINGS.distanceOffset;
+    s.distanceOffset = Math.max(-2000, Math.min(2000, s.distanceOffset));   // 限制在 ±200cm
 
     // Apply to CONFIG
     CONFIG.DEVICE_LABELS = s.labels;
@@ -852,6 +861,7 @@ function applySettingsFromForm() {
     CONFIG.DATA.pointingAziLimit     = s.pointingAziLimit;
     CONFIG.DATA.pointingStableRange  = s.pointingStableRange;
     CONFIG.DATA.smoothAlpha          = s.smoothAlpha;
+    CONFIG.DATA.distanceOffset       = s.distanceOffset;
 
     // Refresh legend labels immediately
     for (var i = 0; i < 3; i++) {
@@ -867,7 +877,16 @@ function applySettingsFromForm() {
     logMsg('⚙️ 参数已更新: 窗口=' + s.smoothingWindow +
            ' | 离群(角度/距离)=' + s.aziOutlierThreshold + '/' + s.disOutlierThreshold +
            ' | 指向(偏差/稳定)=' + s.pointingAziLimit + '/' + s.pointingStableRange +
-           ' | EMA=' + s.smoothAlpha);
+           ' | EMA=' + s.smoothAlpha +
+           ' | 测距偏移=' + (s.distanceOffset / 10) + 'cm');
+}
+
+/**
+ * 测距偏移校正：corrected = raw - CONFIG.DATA.distanceOffset（mm），结果不小于 0
+ */
+function applyDistanceOffset(rawDis) {
+    var offset = Number(CONFIG.DATA.distanceOffset) || 0;
+    return Math.max(0, rawDis - offset);
 }
 
 // ========== Logging ==========
