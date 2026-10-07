@@ -10,7 +10,7 @@ var PolarPlot = (function() {
         var ctx = canvas.getContext('2d');
 
         /* ---- 画布尺寸（横版，适配半圆）---- */
-        var W = 1000, H = 650;
+        var W = 750, H = 500;
         canvas.width = W;
         canvas.height = H;
 
