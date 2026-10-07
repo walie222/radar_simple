@@ -468,11 +468,12 @@ function processData(idx, dis, azi) {
 
     var aziDeg = parseFloat((dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1));
     var disMm  = Math.round(dev.smoothedDis);
+    var disCm  = parseFloat((disMm / 10).toFixed(1)); // mm → cm, 1 decimal
 
-    // Step 4: Update polar plot and legend
+    // Step 4: Update polar plot and legend (plot still uses mm internally)
     state.polarPlot.updateDevice(idx, disMm, aziDeg);
 
-    updateLegend(idx, disMm, aziDeg);
+    updateLegend(idx, disCm, aziDeg);
 
     // Step 5: Compute best_idx across ALL devices (same as Python's compute_best_idx)
     var newBestIdx = computeBestIdx();
@@ -507,7 +508,7 @@ function updateLegend(idx, dis, azi) {
     if (legendItem) {
         var dataSpan = legendItem.querySelector('.legend-data');
         if (dataSpan) {
-            dataSpan.textContent = '距离: ' + dis + 'mm  角度: ' + azi + '°';
+            dataSpan.textContent = '距离: ' + dis + 'cm  角度: ' + azi + '°';
         }
     }
 }
@@ -585,12 +586,13 @@ function updateHighlight(bestIdx) {
     if (bestIdx >= 0) {
         var targetType = 'T' + (bestIdx + 1);
         var dev = state.devices[bestIdx];
-        var dis = Math.round(dev.smoothedDis);
+        var disMm = Math.round(dev.smoothedDis);
+        var disCm = parseFloat((disMm / 10).toFixed(1));
         var azi = parseFloat((dev.smoothedAzi / CONFIG.DATA.aziToDeg).toFixed(1));
 
         pUI.pointingTarget.textContent = CONFIG.DEVICE_ADDRS[bestIdx] + ' (' + targetType + ')';
-        pUI.pointingStatus.textContent = '指向中 | 距离:' + dis + 'mm 角度:' + azi + '°';
-        logMsg('🎯 指向 ' + targetType + ' (距离:' + dis + 'mm, 角度:' + azi + '°)');
+        pUI.pointingStatus.textContent = '指向中 | 距离:' + disCm + 'cm 角度:' + azi + '°';
+        logMsg('🎯 指向 ' + targetType + ' (距离:' + disCm + 'cm, 角度:' + azi + '°)');
     } else {
         pUI.pointingTarget.textContent = '--';
         pUI.pointingStatus.textContent = '等待串口数据...';
@@ -658,7 +660,8 @@ function handlePointAt(msg) {
         tUI.statusDisplay.className = 't-status-display green';
         tUI.deviceIcon.textContent = '🟢';
         tUI.statusText.textContent = '被指向中！';
-        tUI.statusBadge.textContent = '距离: ' + msg.dis + 'mm | 角度: ' + msg.azi + '°';
+        var disCm = parseFloat((msg.dis / 10).toFixed(1));
+        tUI.statusBadge.textContent = '距离: ' + disCm + 'cm | 角度: ' + msg.azi + '°';
     }
 }
 

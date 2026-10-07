@@ -126,12 +126,19 @@ var PolarPlot = (function() {
                 c.stroke();
                 c.setLineDash([]);
 
-                // 标签（画在右侧弧上）
+                // 标签（画在右侧弧上，mm→cm 取整，不写单位）
                 c.fillStyle = '#64748b';
                 c.font = 'bold 15px sans-serif';
                 c.textAlign = 'left';
-                c.fillText(rLabel + 'mm', cx + radius + 8, cy - 8);
+                c.fillText(Math.round(rLabel / 10), cx + radius + 8, cy - 8);
             }
+
+            // ===== 右下角单位标识 "cm" =====
+            c.fillStyle = '#94a3b8';
+            c.font = 'bold 14px sans-serif';
+            c.textAlign = 'right';
+            c.textBaseline = 'bottom';
+            c.fillText('cm', cx + mr - 8, cy - 6);
 
             // ===== 径向线（每 30° 一条）=====
             for (var a = -MAX_DISPLAY_AZI; a <= MAX_DISPLAY_AZI; a += 30) {
