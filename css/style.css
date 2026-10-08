@@ -202,7 +202,7 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 
 /* ---- Mode Indicator ---- */
 .mode-indicator {
-    display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px; margin: 0; padding: 6px 14px;
     background: rgba(255,255,255,0.04); border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
 }
 .mode-badge {
@@ -235,17 +235,14 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 /* ---- 极坐标图区域 — 核心：一屏内并排显示 ---- */
 .polar-container {
     display: flex; gap: 18px; justify-content: center; align-items: flex-start;
-    margin: 12px auto; flex-wrap: nowrap;
+    margin: 4px auto 12px; flex-wrap: nowrap;
     max-width: 980px;
 }
 #polar-canvas {
     width: 750px;
-    height: 500px;
+    height: 460px;
     max-width: 100%;
-    background: var(--paper);
-    border: 2.5px solid var(--ink);
-    border-radius: var(--wobble-3);
-    box-shadow: var(--shadow-ink);
+    background: transparent;
 }
 .polar-legend {
     padding: 14px 16px 10px; min-width: 228px; text-align: left;
@@ -548,7 +545,7 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 .rb-stage.is-arrived .rb-arm { animation: rb-wave 0.9s ease-in-out infinite; }
 @keyframes rb-wave { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(16deg); } }
 
-/* 雷达信号波纹（只改 opacity） */
+/* SLP信号波纹（只改 opacity） */
 .rb-signal { opacity: 0; will-change: opacity; }
 .rb-stage.is-arrived .rb-signal { animation: rb-signal 1.6s ease-out infinite; }
 .rb-stage.is-arrived .rb-signal-2 { animation-delay: 0.25s; }
@@ -707,7 +704,7 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 
 /* ---- 模式指示条 ---- */
 #screen-p-device .mode-indicator {
-    display: inline-flex; margin: 4px auto 12px; padding: 8px 18px;
+    display: inline-flex; margin: 0; padding: 5px 14px;
     border-radius: var(--wobble-2);
     transform: rotate(0.5deg);
 }
@@ -731,10 +728,9 @@ button:focus-visible, input:focus-visible { outline: 3px dashed #4dabf7; outline
 
 /* ---- 极坐标画布：纸板舞台框 ---- */
 #screen-p-device #polar-canvas {
-    background: #dcc49c;
-    border: 4px solid var(--b-ink);
-    border-radius: var(--wobble-3);
-    box-shadow: 6px 8px 0 var(--b-edge), 12px 16px 22px rgba(60, 38, 20, 0.28);
+    background: transparent;
+    border: none;
+    box-shadow: none;
 }
 
 /* ---- 图例：纸板卡 + 排线色块 ---- */

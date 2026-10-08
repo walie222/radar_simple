@@ -1,6 +1,6 @@
 /* ============================================
    主逻辑 — 对齐当前 index.html 结构
-   指向逻辑严格对齐 D:\radar-demo\point_demo.py
+   指向逻辑严格对齐 D:\SLP-demo\point_demo.py
    ============================================ */
 
 console.log('[VERSION] main.js loaded at ' + new Date().toISOString());
@@ -68,7 +68,7 @@ function updateModeUI() {
     if (state.mode === 'localization') {
         pUI.modeBadge.textContent = '📡 定位模式';
         pUI.modeBadge.className   = 'mode-badge localization';
-        pUI.modeDesc.textContent  = '设备随雷达实时移动';
+        pUI.modeDesc.textContent  = '设备随SLP指向实时移动';
         pUI.btnFixPos.textContent = '📍 位置确定';
         pUI.btnFixPos.title       = '切换到指向模式，锁存设备坐标';
     } else {
@@ -715,7 +715,7 @@ function onPubNubMessage(msg, senderId) {
             break;
 
         case 'raw_data':
-            // Raw radar data — P already displays locally
+            // Raw SLP data — P already displays locally
             break;
 
         case 'point_at':

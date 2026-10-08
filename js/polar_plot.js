@@ -61,34 +61,13 @@ var PolarPlot = (function() {
     function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
     function lerp(a, b, t) { return a + (b - a) * t; }
 
-    /* ---------- 牛皮纸板纹理（程序生成一次，之后作为 pattern 复用）---------- */
-    var _kraftTile = null;
-    function kraftTile() {
-        if (_kraftTile) return _kraftTile;
-        var S = 192, cv = document.createElement('canvas');
-        cv.width = cv.height = S;
-        var g = cv.getContext('2d');
-        g.fillStyle = '#dcc49c';
-        g.fillRect(0, 0, S, S);
-        // 颗粒（深 / 浅）
-        for (var i = 0; i < 900; i++) {
-            var x = hash(i * 3.11 + 0.5) * S, y = hash(i * 7.77 + 1.5) * S;
-            var light = hash(i * 1.37) > 0.62;
-            g.fillStyle = light ? 'rgba(250, 238, 212, 0.8)' : 'rgba(110, 78, 46, 0.32)';
-            var r = 0.5 + hash(i * 9.1) * 0.9;
-            g.fillRect(x, y, r, r);
-        }
-        _kraftTile = cv;
-        return cv;
-    }
-
     function create(canvasId) {
         var canvas = document.getElementById(canvasId);
         if (!canvas) return null;
         var ctx = canvas.getContext('2d');
 
         /* ---- 画布尺寸（横版，适配半圆）+ 高清屏适配 ---- */
-        var W = 750, H = 500;
+        var W = 750, H = 460;
         var DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
         canvas.width = W * DPR;
         canvas.height = H * DPR;
@@ -97,7 +76,7 @@ var PolarPlot = (function() {
            地面坐标：X 横向（右为正），Z 向前（0° 方向），单位 = 最大量程半径
            屏幕：原点在底边中央，0° 朝正上方，半径 RADIUS 像素 */
         var RADIUS   = 312;
-        var ORIGIN_Y = 432;
+        var ORIGIN_Y = 392;
         var SLAB_T   = 8;              // 纸板厚度（向右下错开的深色层）
 
         var cx = W / 2;
@@ -625,13 +604,7 @@ var PolarPlot = (function() {
             c.lineCap = 'round';
             c.lineJoin = 'round';
 
-            // ===== 背景：瓦楞纸板（横向瓦楞 + 颗粒）=====
-            c.fillStyle = c.createPattern(kraftTile(), 'repeat');
-            c.fillRect(0, 0, W, H);
-            c.fillStyle = 'rgba(255, 240, 210, 0.10)';
-            for (var sy = 0; sy < H; sy += 10) c.fillRect(0, sy, W, 4);
-            c.fillStyle = 'rgba(80, 55, 30, 0.06)';
-            for (var sy2 = 6; sy2 < H; sy2 += 10) c.fillRect(0, sy2, W, 2);
+            // 背景透明：不再绘制纸板底框，半圆直接放在页面上
 
             // ===== 半圆地面：奶油卡纸剪片（纸板厚度 + 投影 + 马克笔描边）=====
             semicirclePath(c, RADIUS + 6, 7, 9);
@@ -742,6 +715,7 @@ var PolarPlot = (function() {
 
             ensureStatic(MAX_DIS, RING_STEPS);
             c.setTransform(1, 0, 0, 1, 0, 0);
+            c.clearRect(0, 0, canvas.width, canvas.height);   // 背景已透明，每帧需先清空
             c.drawImage(staticLayer, 0, 0);
             c.setTransform(DPR, 0, 0, DPR, 0, 0);
             c.lineCap = 'round';

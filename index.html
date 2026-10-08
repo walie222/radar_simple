@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=ZCOOL+KuaiLe&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=20261008c">
+    <link rel="stylesheet" href="css/style.css?v=20261008d">
 </head>
 <body>
     <!-- ============ 阶段 1: 设备登记 ============ -->
@@ -76,17 +76,16 @@
                 <button id="btn-disconnect" class="btn-secondary hidden">❌ 断开</button>
                 <button id="btn-fix-positions" class="btn-primary" title="切换到指向模式，锁存设备坐标">📍 位置确定</button>
                 <button id="btn-settings" class="btn-secondary" title="参数设置">⚙️ 设置</button>
-            </div>
-
-            <!-- 模式指示器 -->
-            <div class="mode-indicator" id="mode-indicator">
-                <span class="mode-badge" id="mode-badge">📡 定位模式</span>
-                <span class="mode-desc" id="mode-desc">设备随雷达实时移动</span>
+                <!-- 模式指示器（与连接状态、按钮同一行） -->
+                <div class="mode-indicator" id="mode-indicator">
+                    <span class="mode-badge" id="mode-badge">📡 定位模式</span>
+                    <span class="mode-desc" id="mode-desc">设备随SLP指向实时移动</span>
+                </div>
             </div>
 
             <!-- 极坐标图 -->
             <div class="polar-container">
-                <canvas id="polar-canvas" width="750" height="500"></canvas>
+                <canvas id="polar-canvas" width="750" height="460"></canvas>
                 <div class="polar-legend">
                     <div class="legend-item" id="legend-0">
                         <span class="legend-color" style="background:#e74c3c;"></span>
@@ -228,11 +227,11 @@
     <!-- PubNub SDK for cross-device messaging -->
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.27.3.js"></script>
     <!-- Our code -->
-    <script src="js/config.js?v=20261008c"></script>
-    <script src="js/serial_reader.js?v=20261008c"></script>
-    <script src="js/polar_plot.js?v=20261008c"></script>
-    <script src="js/main.js?v=20261008c"></script>
+    <script src="js/config.js?v=20261008d"></script>
+    <script src="js/serial_reader.js?v=20261008d"></script>
+    <script src="js/polar_plot.js?v=20261008d"></script>
+    <script src="js/main.js?v=20261008d"></script>
     <!-- 纯展示层：被指向时的纸片人动画（只观察 #t-status-display 的 class，不参与判定） -->
-    <script src="js/cutout_character.js?v=20261008c"></script>
+    <script src="js/cutout_character.js?v=20261008d"></script>
 </body>
 </html>
